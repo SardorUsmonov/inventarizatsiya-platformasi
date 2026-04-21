@@ -1,0 +1,28 @@
+{
+  "name": "inventarizatsiya-platformasi",
+  "version": "1.0.0",
+  "description": "Korxona inventarizatsiyasi uchun backend, database va login bilan web yechim",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/**/*.test.js",
+    "smoke:url": "node scripts/smoke-url.mjs"
+  },
+  "keywords": [
+    "inventory",
+    "sqlite",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "multer": "^2.1.1"
+  }
+}

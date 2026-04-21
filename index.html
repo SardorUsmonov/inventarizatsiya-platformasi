@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventarizatsiya Platformasi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section class="auth-screen" id="authScreen">
+    <div class="auth-screen__panel">
+      <div class="auth-copy">
+        <p class="hero__eyebrow">Korxona moddiy bazasi</p>
+        <h1>Rol, audit, katalog va Excel oqimlari bilan ishlaydigan inventar tizimi</h1>
+        <p class="hero__text">
+          Endi platforma login, foydalanuvchi rollari, audit log, bo'lim va texnika kataloglari,
+          Excel import/export hamda markazlashgan SQLite baza bilan ishlaydi.
+        </p>
+
+        <div class="auth-highlights">
+          <article class="highlight-card">
+            <strong>Role-based kirish</strong>
+            <span>Administrator, manager va kuzatuvchi rollari bo'yicha imkoniyatlar ajratilgan.</span>
+          </article>
+          <article class="highlight-card">
+            <strong>Katalog boshqaruvi</strong>
+            <span>Bo'limlar va texnikalar alohida katalogda boshqariladi, inventar formasi shu katalogga ulanadi.</span>
+          </article>
+          <article class="highlight-card">
+            <strong>Audit va Excel</strong>
+            <span>Harakatlar loglanadi, Excel bilan import/export va template yuklab olish mavjud.</span>
+          </article>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <p class="panel__eyebrow">Tizimga kirish</p>
+        <h2>Inventar paneli</h2>
+        <p class="auth-card__text">Boshqaruv paneliga kirish uchun login ma'lumotlarini kiriting.</p>
+        <div class="status-banner status-banner--error auth-feedback hidden" id="authFeedback" role="alert"></div>
+
+        <form id="loginForm" class="inventory-form">
+          <label class="field">
+            <span>Login</span>
+            <input id="loginUsername" type="text" placeholder="Masalan: admin" autocomplete="username" required>
+          </label>
+
+          <label class="field">
+            <span>Parol</span>
+            <input id="loginPassword" type="password" placeholder="Parolni kiriting" autocomplete="current-password" required>
+          </label>
+
+          <button class="primary-button auth-card__button" id="loginButton" type="submit">Kirish</button>
+        </form>
+
+        <p class="auth-card__hint">Dastlabki login: <strong>admin</strong>, parol: <strong>Admin123!</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="page-shell hidden" id="appShell">
+    <header class="hero">
+      <div class="hero__content">
+        <div class="hero__meta">
+          <span class="hero__badge">Inventory Control Center</span>
+
+          <div class="session-chip">
+            <div class="session-chip__meta">
+              <span class="session-chip__label">Aktiv foydalanuvchi</span>
+              <strong id="sessionUser">-</strong>
+              <span class="session-chip__role" id="sessionRole">-</span>
+            </div>
+            <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
+          </div>
+        </div>
+
+        <p class="hero__eyebrow">Korxona moddiy bazasi</p>
+        <h1>Bitta panelda inventar, katalog, foydalanuvchi va audit boshqaruvi</h1>
+        <p class="hero__text">
+          Tizim server orqali ishlaydi, brauzer ichidagi vaqtinchalik saqlashga bog'liq emas.
+          Endi ma'lumotlar baza bilan boshqariladi va jarayonlar ancha ishonchli.
+        </p>
+      </div>
+
+      <div class="hero__stats">
+        <article class="stat-card">
+          <span class="stat-card__label">Yozuvlar</span>
+          <strong class="stat-card__value" id="totalRecords">0</strong>
+        </article>
+        <article class="stat-card">
+          <span class="stat-card__label">Bo'limlar</span>
+          <strong class="stat-card__value" id="totalDepartments">0</strong>
+        </article>
+        <article class="stat-card">
+          <span class="stat-card__label">Aktiv texnikalar</span>
+          <strong class="stat-card__value" id="activeDevices">0</strong>
+        </article>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab-button is-active" data-tab-target="inventory" type="button">Inventar</button>
+      <button class="tab-button" data-tab-target="catalogs" type="button">Kataloglar</button>
+      <button class="tab-button hidden" data-tab-target="users" id="usersTabButton" type="button">Foydalanuvchilar</button>
+      <button class="tab-button hidden" data-tab-target="audit" id="auditTabButton" type="button">Audit log</button>
+    </nav>
+
+    <div class="status-banner hidden" id="statusBanner" role="status" aria-live="polite"></div>
+
+    <section class="app-tab" id="tabInventory">
+      <main class="workspace">
+        <section class="panel panel--form">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Inventar forma</p>
+              <h2>Yangi yozuv</h2>
+              <p class="panel__subtext">Katalogdan bo'lim va texnikani tanlab yozuv yarating.</p>
+            </div>
+            <button class="ghost-button hidden" id="cancelEditButton" type="button">Bekor qilish</button>
+          </div>
+
+          <div class="access-note hidden" id="inventoryAccessNote">
+            Sizda inventar yozuvlarini yaratish yoki tahrirlash huquqi yo'q.
+          </div>
+
+          <form id="inventoryForm" class="inventory-form">
+            <input type="hidden" id="recordId">
+
+            <label class="field">
+              <span>Ism</span>
+              <input id="firstName" type="text" placeholder="Masalan: Ali" required>
+            </label>
+
+            <label class="field">
+              <span>Familya</span>
+              <input id="lastName" type="text" placeholder="Masalan: Karimov" required>
+            </label>
+
+            <label class="field">
+              <span>Bo'lim</span>
+              <select id="departmentId" required></select>
+            </label>
+
+            <label class="field">
+              <span>Texnika</span>
+              <select id="deviceId" required></select>
+            </label>
+
+            <label class="field">
+              <span>Oldin kimda bo'lgan</span>
+              <input id="previousHolder" type="text" placeholder="Masalan: Murod Usmonov">
+            </label>
+
+            <label class="field">
+              <span>Hozir kimda</span>
+              <input id="currentHolder" type="text" placeholder="Masalan: Ali Karimov" required>
+            </label>
+
+            <div class="form-actions">
+              <button class="primary-button" id="submitButton" type="submit">Saqlash</button>
+              <button class="secondary-button" id="resetButton" type="reset">Tozalash</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel panel--list">
+          <div class="panel__header panel__header--spread">
+            <div>
+              <p class="panel__eyebrow">Inventar ro'yxati</p>
+              <h2>Joriy yozuvlar</h2>
+              <p class="panel__subtext" id="tableSummary">Yozuvlar yuklanmoqda...</p>
+            </div>
+
+            <div class="toolbar">
+              <label class="search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
+                </svg>
+                <input id="searchInput" type="search" placeholder="Ism, bo'lim, texnika yoki egasi bo'yicha qidiring">
+              </label>
+              <select class="toolbar-select" id="filterDepartmentId"></select>
+              <select class="toolbar-select" id="filterDeviceId"></select>
+              <button class="secondary-button" id="refreshButton" type="button">Yangilash</button>
+              <button class="secondary-button hidden" id="downloadTemplateButton" type="button">Template</button>
+              <button class="secondary-button hidden" id="importButton" type="button">Excel import</button>
+              <button class="secondary-button hidden" id="exportExcelButton" type="button">Excel eksport</button>
+              <button class="secondary-button hidden" id="exportCsvButton" type="button">CSV eksport</button>
+              <input class="hidden" id="importFileInput" type="file" accept=".xlsx,.xlsm,.xls">
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ism</th>
+                  <th>Familya</th>
+                  <th>Bo'lim</th>
+                  <th>Texnika</th>
+                  <th>Oldin kimda</th>
+                  <th>Hozir kimda</th>
+                  <th>Yangilangan</th>
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <h3>Yozuv topilmadi</h3>
+            <p id="emptyStateText">Hali birorta inventar yozuvi mavjud emas.</p>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section class="app-tab hidden" id="tabCatalogs">
+      <div class="catalog-grid">
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Bo'limlar katalogi</p>
+              <h2>Bo'limlar</h2>
+              <p class="panel__subtext">Inventarda tanlanadigan bo'limlar ro'yxati.</p>
+            </div>
+            <button class="ghost-button hidden" id="cancelDepartmentEditButton" type="button">Bekor qilish</button>
+          </div>
+
+          <div class="access-note hidden" id="catalogAccessNote">
+            Sizda kataloglarni o'zgartirish huquqi yo'q. Bu yerda faqat ko'rish rejimi ishlaydi.
+          </div>
+
+          <form class="inventory-form" id="departmentForm">
+            <input type="hidden" id="departmentCatalogId">
+
+            <label class="field">
+              <span>Bo'lim nomi</span>
+              <input id="departmentName" type="text" placeholder="Masalan: IT bo'limi" required>
+            </label>
+
+            <label class="field">
+              <span>Kod</span>
+              <input id="departmentCode" type="text" placeholder="Masalan: IT">
+            </label>
+
+            <label class="field">
+              <span>Izoh</span>
+              <input id="departmentDescription" type="text" placeholder="Qisqa ta'rif">
+            </label>
+
+            <label class="checkbox-field">
+              <input id="departmentIsActive" type="checkbox" checked>
+              <span>Faol holatda saqlansin</span>
+            </label>
+
+            <div class="form-actions">
+              <button class="primary-button" id="departmentSubmitButton" type="submit">Saqlash</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Bo'lim</th>
+                  <th>Kod</th>
+                  <th>Holat</th>
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody id="departmentsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Texnika katalogi</p>
+              <h2>Texnikalar</h2>
+              <p class="panel__subtext">Inventar formasi shu katalog asosida to'ldiriladi.</p>
+            </div>
+            <button class="ghost-button hidden" id="cancelDeviceEditButton" type="button">Bekor qilish</button>
+          </div>
+
+          <form class="inventory-form" id="deviceForm">
+            <input type="hidden" id="deviceCatalogId">
+
+            <label class="field">
+              <span>Texnika nomi</span>
+              <input id="deviceCatalogName" type="text" placeholder="Masalan: Dell Latitude 5520" required>
+            </label>
+
+            <label class="field">
+              <span>Kategoriya</span>
+              <input id="deviceCategory" type="text" placeholder="Masalan: Laptop">
+            </label>
+
+            <label class="field">
+              <span>Model</span>
+              <input id="deviceModel" type="text" placeholder="Masalan: 5520">
+            </label>
+
+            <label class="field">
+              <span>Izoh</span>
+              <input id="deviceDescription" type="text" placeholder="Qo'shimcha ma'lumot">
+            </label>
+
+            <label class="checkbox-field">
+              <input id="deviceIsActive" type="checkbox" checked>
+              <span>Faol holatda saqlansin</span>
+            </label>
+
+            <div class="form-actions">
+              <button class="primary-button" id="deviceSubmitButton" type="submit">Saqlash</button>
+            </div>
+          </form>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Texnika</th>
+                  <th>Kategoriya</th>
+                  <th>Holat</th>
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="app-tab hidden" id="tabUsers">
+      <main class="workspace">
+        <section class="panel panel--form">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Foydalanuvchi formasi</p>
+              <h2>Rol bilan boshqarish</h2>
+              <p class="panel__subtext">Yangi foydalanuvchi yarating yoki mavjudini yangilang.</p>
+            </div>
+            <button class="ghost-button hidden" id="cancelUserEditButton" type="button">Bekor qilish</button>
+          </div>
+
+          <form class="inventory-form" id="userForm">
+            <input type="hidden" id="userId">
+
+            <label class="field">
+              <span>F.I.Sh.</span>
+              <input id="userFullName" type="text" placeholder="Masalan: Ali Karimov" required>
+            </label>
+
+            <label class="field">
+              <span>Login</span>
+              <input id="userUsername" type="text" placeholder="Masalan: akarimov" required>
+            </label>
+
+            <label class="field">
+              <span>Rol</span>
+              <select id="userRole" required></select>
+            </label>
+
+            <label class="field">
+              <span>Parol</span>
+              <input id="userPassword" type="password" placeholder="Yangi foydalanuvchi uchun majburiy">
+            </label>
+
+            <label class="checkbox-field">
+              <input id="userIsActive" type="checkbox" checked>
+              <span>Faol holatda saqlansin</span>
+            </label>
+
+            <div class="form-actions">
+              <button class="primary-button" id="userSubmitButton" type="submit">Saqlash</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel panel--list">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Foydalanuvchilar</p>
+              <h2>Rol va status</h2>
+              <p class="panel__subtext">Aktiv foydalanuvchilar va ularning huquqlari ro'yxati.</p>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>F.I.Sh.</th>
+                  <th>Login</th>
+                  <th>Rol</th>
+                  <th>Holat</th>
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section class="app-tab hidden" id="tabAudit">
+      <section class="panel">
+        <div class="panel__header panel__header--spread">
+          <div>
+            <p class="panel__eyebrow">Audit log</p>
+            <h2>Oxirgi harakatlar</h2>
+            <p class="panel__subtext">Tizimdagi yaratish, o'zgartirish, login va import amallari shu yerda ko'rinadi.</p>
+          </div>
+
+          <div class="toolbar">
+            <label class="search">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
+              </svg>
+              <input id="auditSearchInput" type="search" placeholder="Amal, foydalanuvchi yoki izoh bo'yicha qidiring">
+            </label>
+            <select class="toolbar-select" id="auditEntityFilter">
+              <option value="">Barcha entity</option>
+              <option value="auth">Auth</option>
+              <option value="inventory">Inventory</option>
+              <option value="department">Department</option>
+              <option value="device">Device</option>
+              <option value="user">User</option>
+            </select>
+            <button class="secondary-button" id="refreshAuditButton" type="button">Yangilash</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sana</th>
+                <th>Foydalanuvchi</th>
+                <th>Rol</th>
+                <th>Amal</th>
+                <th>Entity</th>
+                <th>Izoh</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="empty-state" id="auditEmptyState">
+          <h3>Audit yozuvi topilmadi</h3>
+          <p>Filter bo'yicha hozircha ma'lumot mavjud emas.</p>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
