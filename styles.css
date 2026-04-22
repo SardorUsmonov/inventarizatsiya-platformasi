@@ -238,6 +238,28 @@ a {
   font-size: 13px;
 }
 
+.auth-copy--minimal {
+  display: grid;
+  align-content: center;
+  gap: 24px;
+  min-height: 100%;
+}
+
+.auth-copy__headline {
+  display: grid;
+  gap: 6px;
+  max-width: 9ch;
+  margin: 0;
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.96;
+}
+
+.auth-copy__headline-accent {
+  color: var(--brand-dark);
+}
+
 .auth-copy h1,
 .hero h1,
 .panel h2,

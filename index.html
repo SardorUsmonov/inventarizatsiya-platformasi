@@ -12,54 +12,19 @@
 <body>
   <section class="auth-screen" id="authScreen">
     <div class="auth-screen__panel">
-      <div class="auth-copy">
+      <div class="auth-copy auth-copy--minimal">
         <div class="brand-lockup">
           <span class="brand-lockup__mark">IO</span>
           <div>
             <strong class="brand-lockup__title">Inventory OS</strong>
-            <p class="brand-lockup__text">IT asset management workspace</p>
           </div>
         </div>
 
-        <p class="hero__eyebrow">Korxona moddiy bazasi</p>
-        <h1>IT kompaniya uchun toza, tez va nazoratga qulay inventar boshqaruvi</h1>
-        <p class="hero__text">
-          Platforma bo'limlar, texnikalar, foydalanuvchi rollari, audit log va Excel jarayonlarini
-          bitta zamonaviy boshqaruv panelida birlashtiradi.
-        </p>
-
-        <div class="auth-metrics">
-          <article class="metric-card">
-            <span class="metric-card__label">Nazorat</span>
-            <strong class="metric-card__value">Role-based</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-card__label">Jarayon</span>
-            <strong class="metric-card__value">Excel ready</strong>
-          </article>
-          <article class="metric-card">
-            <span class="metric-card__label">Baza</span>
-            <strong class="metric-card__value">SQLite core</strong>
-          </article>
-        </div>
-
-        <div class="auth-highlights">
-          <article class="highlight-card">
-            <span class="highlight-card__badge">01</span>
-            <strong>Role-based kirish</strong>
-            <span>Administrator, manager va viewer rollari uchun moslashgan nazorat mexanizmi.</span>
-          </article>
-          <article class="highlight-card">
-            <span class="highlight-card__badge">02</span>
-            <strong>Katalogdan tez tanlash</strong>
-            <span>Bo'lim va texnikalar alohida katalogda yuradi, kerak bo'lsa formaning o'zidan qo'shiladi.</span>
-          </article>
-          <article class="highlight-card">
-            <span class="highlight-card__badge">03</span>
-            <strong>Audit va import/export</strong>
-            <span>Yaratish, yangilash, login va Excel amallari bo'yicha kuzatuv izlari saqlanadi.</span>
-          </article>
-        </div>
+        <h1 class="auth-copy__headline">
+          <span>Tez va</span>
+          <span class="auth-copy__headline-accent">nazoratga qulay</span>
+          <span>inventar boshqaruvi</span>
+        </h1>
       </div>
 
       <div class="auth-card">
@@ -74,7 +39,7 @@
         <form id="loginForm" class="inventory-form">
           <label class="field">
             <span>Login</span>
-            <input id="loginUsername" type="text" placeholder="Masalan: admin" autocomplete="username" required>
+            <input id="loginUsername" type="text" placeholder="Masalan: Admin" autocomplete="username" required>
           </label>
 
           <label class="field">
@@ -84,15 +49,6 @@
 
           <button class="primary-button auth-card__button" id="loginButton" type="submit">Kirish</button>
         </form>
-
-        <div class="auth-card__footer">
-          <p class="auth-card__hint">Lokal default login: <strong>admin</strong>, parol: <strong>Admin123!</strong></p>
-          <div class="support-pills">
-            <span class="support-pill">Audit trail</span>
-            <span class="support-pill">Excel import/export</span>
-            <span class="support-pill">Catalog control</span>
-          </div>
-        </div>
       </div>
     </div>
   </section>
