@@ -273,16 +273,16 @@
 
         appendCell(row, "Ism", record.firstName);
         appendCell(row, "Familya", record.lastName);
-        appendCell(row, "Bo'lim", record.department);
+        appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
         appendStackCell(row, "Texnika", [
           record.deviceName,
           [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || record.officeLocation || "",
         ]);
-        appendStackCell(row, "Asset", [
+        appendStackCell(row, "Aktiv", [
           record.assetTag || "Tag biriktirilmagan",
           record.serialNumber || "Serial raqam yo'q",
         ]);
-        appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+        appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
         appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
         appendStackCell(row, "Xarid / Kafolat", [
           record.purchaseDate ? `Xarid: ${formatShortDate(record.purchaseDate)}` : "Xarid sanasi yo'q",
@@ -420,7 +420,7 @@
         appendCell(row, "F.I.Sh.", user.fullName);
         appendCell(row, "Login", user.username);
         appendCell(row, "Rol", getRoleLabel(user.role));
-        appendStackCell(row, "Security", [
+        appendStackCell(row, "Xavfsizlik", [
           user.mustChangePassword ? "Parol yangilashi shart" : "Parol normal",
           user.failedLoginAttempts ? `${user.failedLoginAttempts} xato urinish` : user.lockedUntil ? "Vaqtincha bloklangan" : "",
         ]);
@@ -628,7 +628,7 @@
     attachmentFileInput.addEventListener("change", () => {
       enhancementState.pendingAttachmentFile = attachmentFileInput.files?.[0] || null;
       if (enhancementState.pendingAttachmentFile) {
-        showStatus(`${enhancementState.pendingAttachmentFile.name} attachment uchun tanlandi.`);
+        showStatus(`${enhancementState.pendingAttachmentFile.name} fayl yuklash uchun tanlandi.`);
       }
     });
     attachmentUploadButton.addEventListener("click", uploadAttachmentForSelectedRecord);
@@ -692,7 +692,7 @@
     refreshSystemButton.addEventListener("click", async () => {
       try {
         await refreshSystemSummary();
-        showStatus("System summary yangilandi.");
+        showStatus("Tizim xulosasi yangilandi.");
       } catch (error) {
         showStatus(error.message, "error");
       }
@@ -703,7 +703,7 @@
         const response = await fetch("/api/system/backup", { credentials: "same-origin" });
 
         if (!response.ok) {
-          throw new Error("Backup yuklab bo'lmadi.");
+          throw new Error("Zaxira nusxasini yuklab bo'lmadi.");
         }
 
         const blob = await response.blob();
@@ -717,7 +717,7 @@
     restoreFileInput.addEventListener("change", () => {
       enhancementState.pendingRestoreFile = restoreFileInput.files?.[0] || null;
       if (enhancementState.pendingRestoreFile) {
-        showStatus(`${enhancementState.pendingRestoreFile.name} restore uchun tanlandi.`);
+        showStatus(`${enhancementState.pendingRestoreFile.name} tiklash uchun tanlandi.`);
       }
     });
 
@@ -828,7 +828,7 @@
 
   function renderImportPreview(preview) {
     importPreviewTableBody.innerHTML = "";
-    importPreviewSummary.textContent = `${preview.validRows || 0} ta valid qator, jami ${preview.totalRows || 0} ta satr topildi.`;
+    importPreviewSummary.textContent = `${preview.validRows || 0} ta yaroqli qator, jami ${preview.totalRows || 0} ta satr topildi.`;
 
     if (preview.errors?.length) {
       importPreviewErrors.textContent = preview.errors.join(" ");
@@ -840,10 +840,10 @@
 
     (preview.previewRows || []).forEach((row) => {
       const tr = document.createElement("tr");
-      appendCell(tr, "Holder", `${row.firstName} ${row.lastName}`);
-      appendCell(tr, "Bo'lim", row.department);
+      appendCell(tr, "Egasi", `${row.firstName} ${row.lastName}`);
+      appendCell(tr, "Bo'lim", localizeDepartmentName(row.department));
       appendCell(tr, "Texnika", row.deviceName);
-      appendCell(tr, "Asset", row.assetTag || "-");
+      appendCell(tr, "Aktiv", row.assetTag || "-");
       importPreviewTableBody.appendChild(tr);
     });
 
@@ -851,7 +851,7 @@
       const tr = document.createElement("tr");
       const cell = document.createElement("td");
       cell.colSpan = 4;
-      cell.textContent = "Preview uchun valid qator topilmadi.";
+      cell.textContent = "Ko'rib chiqish uchun yaroqli qator topilmadi.";
       tr.appendChild(cell);
       importPreviewTableBody.appendChild(tr);
     }
@@ -859,7 +859,7 @@
 
   async function confirmPreviewImport() {
     if (!enhancementState.pendingImportFile) {
-      showStatus("Import preview uchun fayl tanlanmagan.", "error");
+      showStatus("Importni ko'rib chiqish uchun fayl tanlanmagan.", "error");
       return;
     }
 
@@ -876,7 +876,7 @@
       clearImportPreview();
       await refreshDashboardData();
       await loadInventory();
-      showStatus(`${response.result.insertedCount} ta yozuv preview orqali import qilindi.`);
+      showStatus(`${response.result.insertedCount} ta yozuv ko'rib chiqishdan so'ng import qilindi.`);
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
@@ -915,7 +915,7 @@
     enhancementState.detail = null;
     inventoryDetailPanel.classList.add("hidden");
     detailTitle.textContent = "Aktiv tanlanmagan";
-    detailSubtitle.textContent = "Qatorni tanlab, QR, servis tarixi va attachmentlarni ko'ring.";
+    detailSubtitle.textContent = "Qatorni tanlab, QR, servis tarixi va fayllarni ko'ring.";
     detailMetaList.innerHTML = "";
     transferTimeline.innerHTML = "";
     serviceLogList.innerHTML = "";
@@ -936,7 +936,7 @@
     const record = detail.record;
     inventoryDetailPanel.classList.remove("hidden");
     detailTitle.textContent = `${record.deviceName} / ${record.assetTag || "Tag yo'q"}`;
-    detailSubtitle.textContent = `${record.firstName} ${record.lastName} | ${record.currentHolder} | ${record.department}`;
+    detailSubtitle.textContent = `${record.firstName} ${record.lastName} | ${record.currentHolder} | ${localizeDepartmentName(record.department)}`;
 
     renderDetailMeta(record);
     renderTransferTimeline(detail.transfers || []);
@@ -951,14 +951,14 @@
   function renderDetailMeta(record) {
     detailMetaList.innerHTML = "";
     const items = [
-      ["Asset tag", record.assetTag || "-"],
-      ["Serial", record.serialNumber || "-"],
-      ["Status", getAssetStatusLabel(record.assetStatus)],
+      ["Aktiv tegi", record.assetTag || "-"],
+      ["Serial raqam", record.serialNumber || "-"],
+      ["Holati", getAssetStatusLabel(record.assetStatus)],
       ["Holat", getConditionStatusLabel(record.conditionStatus)],
       ["Xarid", formatDateOrDash(record.purchaseDate)],
       ["Narx", record.purchasePrice ? `${formatCurrency(record.purchasePrice)} so'm` : "-"],
       ["Kafolat", formatDateOrDash(record.warrantyUntil)],
-      ["Supplier", record.supplier || "-"],
+      ["Yetkazib beruvchi", record.supplier || "-"],
       ["Filial", record.branch || "-"],
       ["Xona/Stol", [record.room, record.desk].filter(Boolean).join(" / ") || "-"],
       ["Joylashuv", record.officeLocation || "-"],
@@ -996,7 +996,7 @@
       header.innerHTML = `<strong>${formatDateOrDash(transfer.transferDate)}</strong><span>${getAssetStatusLabel(transfer.toStatus)}</span>`;
       const body = document.createElement("div");
       body.className = "timeline__body";
-      body.textContent = `${transfer.fromHolder || "-"} -> ${transfer.toHolder || "-"} | ${transfer.fromDepartment || "-"} -> ${transfer.toDepartment || "-"}${transfer.notes ? ` | ${transfer.notes}` : ""}`;
+      body.textContent = `${transfer.fromHolder || "-"} -> ${transfer.toHolder || "-"} | ${localizeDepartmentName(transfer.fromDepartment) || "-"} -> ${localizeDepartmentName(transfer.toDepartment) || "-"}${transfer.notes ? ` | ${transfer.notes}` : ""}`;
       item.append(header, body);
       transferTimeline.appendChild(item);
     });
@@ -1015,7 +1015,7 @@
       row.className = "detail-list__row detail-list__row--stack";
       row.innerHTML = `
         <strong class="detail-list__value">${formatDateOrDash(log.serviceDate)} | ${log.serviceType}</strong>
-        <span class="detail-list__subvalue">${log.vendor || "Vendor ko'rsatilmagan"}${log.cost ? ` | ${formatCurrency(log.cost)} so'm` : ""}</span>
+        <span class="detail-list__subvalue">${log.vendor || "Servis markazi ko'rsatilmagan"}${log.cost ? ` | ${formatCurrency(log.cost)} so'm` : ""}</span>
         <span class="detail-list__subvalue">${log.notes || "Izoh yo'q"}</span>
       `;
       serviceLogList.appendChild(row);
@@ -1026,7 +1026,7 @@
     attachmentList.innerHTML = "";
 
     if (!attachments.length) {
-      attachmentList.appendChild(createEmptyDetailRow("Attachment fayllar hozircha yo'q."));
+      attachmentList.appendChild(createEmptyDetailRow("Fayllar hozircha yo'q."));
       return;
     }
 
@@ -1052,7 +1052,7 @@
         actions.appendChild(createRowButton("O'chirish", async () => {
           await request(`/api/inventory/${recordId}/attachments/${attachment.id}`, { method: "DELETE" });
           await loadInventoryDetail(recordId, { silent: true });
-          showStatus("Attachment o'chirildi.");
+          showStatus("Fayl o'chirildi.");
         }));
       }
 
@@ -1068,7 +1068,7 @@
     }
 
     if (!enhancementState.pendingAttachmentFile) {
-      showStatus("Attachment uchun fayl tanlanmagan.", "error");
+      showStatus("Yuklash uchun fayl tanlanmagan.", "error");
       return;
     }
 
@@ -1084,7 +1084,7 @@
       enhancementState.pendingAttachmentFile = null;
       attachmentFileInput.value = "";
       await loadInventoryDetail(enhancementState.detailRecordId, { silent: true });
-      showStatus("Attachment yuklandi.");
+      showStatus("Fayl yuklandi.");
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
@@ -1107,35 +1107,35 @@
   function renderGlobalSearchResults(results) {
     globalSearchResults.innerHTML = "";
     const sections = [
-      ["Inventory", results.inventory || [], (item) => {
+      ["Inventar", results.inventory || [], (item) => {
         hideGlobalSearchResults();
         globalSearchInput.value = "";
         activateTab("inventory");
         loadInventoryDetail(item.id).catch(handleError);
-      }, (item) => `${item.assetTag || "Tag yo'q"} | ${item.deviceName} | ${item.department}`],
-      ["Departments", results.departments || [], (item) => {
+      }, (item) => `${item.assetTag || "Tag yo'q"} | ${item.deviceName} | ${localizeDepartmentName(item.department)}`],
+      ["Bo'limlar", results.departments || [], (item) => {
         hideGlobalSearchResults();
         activateTab("catalogs");
         departmentCatalogSearchInput.value = item.name || "";
         scheduleCatalogRender();
-      }, (item) => `${item.name}${item.code ? ` (${item.code})` : ""}`],
-      ["Devices", results.devices || [], (item) => {
+      }, (item) => `${localizeDepartmentName(item.name)}${item.code ? ` (${item.code})` : ""}`],
+      ["Texnikalar", results.devices || [], (item) => {
         hideGlobalSearchResults();
         activateTab("catalogs");
         deviceCatalogSearchInput.value = item.name || "";
         scheduleCatalogRender();
       }, (item) => `${item.name}${item.model ? ` | ${item.model}` : ""}`],
-      ["Users", results.users || [], (item) => {
+      ["Foydalanuvchilar", results.users || [], (item) => {
         hideGlobalSearchResults();
         activateTab("users");
         fillUserForm(item);
       }, (item) => `${item.fullName} | ${getRoleLabel(item.role)}`],
-      ["Audit", results.audit || [], (item) => {
+      ["Audit log", results.audit || [], (item) => {
         hideGlobalSearchResults();
         activateTab("audit");
         auditSearchInput.value = item.action || "";
         loadAuditLogs().catch(handleError);
-      }, (item) => `${item.action} | ${item.summary || "-"}`],
+      }, (item) => `${formatAuditActionLabel(item.action)} | ${localizeUiText(item.summary) || "-"}`],
     ];
 
     sections.forEach(([title, items, onClick, formatter]) => {
@@ -1199,14 +1199,14 @@
     const reportOverview = enhancementState.reportSummary?.overview?.stats || state.dashboardOverview?.stats || {};
     const metrics = enhancementState.systemMetrics || enhancementState.reportSummary?.metrics || null;
     const cards = [
-      ["Host", window.location.origin],
+      ["Manzil", window.location.origin],
       ["Yozuvlar", String(reportOverview.totalRecords || state.inventoryRecords.length || 0)],
       ["Aktiv sessiyalar", metrics?.activeSessions != null ? String(metrics.activeSessions) : "-"],
       ["Servis loglar", metrics?.serviceLogs != null ? String(metrics.serviceLogs) : "-"],
       ["Transferlar", metrics?.transfers != null ? String(metrics.transfers) : "-"],
-      ["Attachment hajmi", metrics ? formatBytes(metrics.uploadsSizeBytes || 0) : "-"],
+      ["Fayllar hajmi", metrics ? formatBytes(metrics.uploadsSizeBytes || 0) : "-"],
       ["DB hajmi", metrics ? formatBytes(metrics.databaseSizeBytes || 0) : "-"],
-      ["Backup soni", metrics?.backupCount != null ? String(metrics.backupCount) : String((state.backupRuns || []).length)],
+      ["Zaxira nusxalari soni", metrics?.backupCount != null ? String(metrics.backupCount) : String((state.backupRuns || []).length)],
     ];
 
     cards.forEach(([label, value]) => {
@@ -1228,7 +1228,7 @@
     const items = state.backupRuns || [];
 
     if (!items.length) {
-      backupRunsList.appendChild(createEmptyDetailRow("Backup tarixi hozircha yo'q."));
+      backupRunsList.appendChild(createEmptyDetailRow("Zaxira nusxalari tarixi hozircha yo'q."));
       return;
     }
 
@@ -1237,7 +1237,7 @@
       row.className = "detail-list__row detail-list__row--stack";
       row.innerHTML = `
         <strong class="detail-list__value">${backup.fileName}</strong>
-        <span class="detail-list__subvalue">${backup.summary || "-"}</span>
+        <span class="detail-list__subvalue">${localizeUiText(backup.summary) || "-"}</span>
         <span class="detail-list__subvalue">${formatDate(backup.createdAt)}</span>
       `;
       backupRunsList.appendChild(row);
@@ -1246,11 +1246,11 @@
 
   async function restoreBackupFromSelectedFile() {
     if (!enhancementState.pendingRestoreFile) {
-      showStatus("Restore uchun backup fayl tanlanmagan.", "error");
+      showStatus("Tiklash uchun zaxira fayli tanlanmagan.", "error");
       return;
     }
 
-    if (!window.confirm("Restore jarayoni joriy ma'lumotlarni almashtiradi. Davom etamizmi?")) {
+    if (!window.confirm("Tiklash jarayoni joriy ma'lumotlarni almashtiradi. Davom etamizmi?")) {
       return;
     }
 
@@ -1266,8 +1266,8 @@
       enhancementState.pendingRestoreFile = null;
       restoreFileInput.value = "";
       showAuth();
-      showAuthFeedback(response.message || "Restore bajarildi.");
-      showStatus("Backup tiklandi. Qayta login qiling.");
+      showAuthFeedback(response.message || "Tiklash bajarildi.");
+      showStatus("Zaxira nusxasi tiklandi. Qayta login qiling.");
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
@@ -1284,14 +1284,14 @@
   function applyStoredTheme() {
     const theme = window.localStorage.getItem(STORAGE_KEYS.theme) || "light";
     document.body.dataset.theme = theme;
-    themeToggleButton.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    themeToggleButton.textContent = theme === "dark" ? "Kunduzgi rejim" : "Tungi rejim";
   }
 
   function toggleTheme() {
     const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
     document.body.dataset.theme = nextTheme;
     window.localStorage.setItem(STORAGE_KEYS.theme, nextTheme);
-    themeToggleButton.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
+    themeToggleButton.textContent = nextTheme === "dark" ? "Kunduzgi rejim" : "Tungi rejim";
   }
 
   function createEmptyDetailRow(text) {

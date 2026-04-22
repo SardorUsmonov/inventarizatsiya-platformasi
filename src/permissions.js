@@ -1,17 +1,17 @@
 const ROLE_LABELS = {
   admin: "Administrator",
   auditor: "Auditor",
-  manager: "Manager",
-  support: "IT Support",
+  manager: "Menejer",
+  support: "IT yordam",
   viewer: "Kuzatuvchi",
   warehouse: "Ombor mas'uli",
 };
 
 const ROLE_DESCRIPTIONS = {
-  admin: "Tizim, foydalanuvchi, backup, audit va barcha aktivlarni to'liq boshqaradi.",
+  admin: "Tizim, foydalanuvchi, zaxira nusxasi, audit va barcha aktivlarni to'liq boshqaradi.",
   auditor: "Audit, hisobot va inventar ma'lumotlarini nazorat qiladi, lekin o'zgartira olmaydi.",
-  manager: "Inventar, katalog, servis, attachment va hisobotlar bilan ishlaydi.",
-  support: "Servis, attachment va aktivlarning texnik holati bilan ishlaydi.",
+  manager: "Inventar, katalog, servis, fayllar va hisobotlar bilan ishlaydi.",
+  support: "Servis, fayllar va aktivlarning texnik holati bilan ishlaydi.",
   viewer: "Faqat ko'rish va eksport qilish huquqiga ega.",
   warehouse: "Aktiv kirim-chiqimi, zaxira va biriktirish jarayonlarini yuritadi.",
 };

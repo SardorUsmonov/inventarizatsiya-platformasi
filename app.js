@@ -581,7 +581,7 @@ function renderSessionIdentity() {
 function renderRoleOptions() {
   fillSelectOptions(
     userRoleSelect,
-    state.roles.map((role) => ({ label: role.label, value: role.value })),
+    state.roles.map((role) => ({ label: localizeRoleLabel(role.label), value: role.value })),
     { placeholder: "Rolni tanlang" }
   );
 }
@@ -671,16 +671,16 @@ function renderInventory(records, stats) {
     const row = document.createElement("tr");
     appendCell(row, "Ism", record.firstName);
     appendCell(row, "Familya", record.lastName);
-    appendCell(row, "Bo'lim", record.department);
+    appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
     appendStackCell(row, "Texnika", [
       record.deviceName,
       record.officeLocation || record.supplier || "",
     ]);
-    appendStackCell(row, "Asset", [
+    appendStackCell(row, "Aktiv", [
       record.assetTag || "Tag biriktirilmagan",
       record.serialNumber || "Serial raqam yo'q",
     ]);
-    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+    appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
     appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
     appendStackCell(row, "Xarid / Kafolat", [
       record.purchaseDate ? `Xarid: ${formatShortDate(record.purchaseDate)}` : "Xarid sanasi yo'q",
@@ -738,18 +738,18 @@ function renderDashboard(overview) {
 
   renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel);
   renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel);
-  renderBreakdownList(dashboardDepartmentList, overview?.byDepartment || [], (value) => value);
+  renderBreakdownList(dashboardDepartmentList, overview?.byDepartment || [], localizeDepartmentName);
 
   renderDashboardTable(recentPurchasesTableBody, overview?.recentPurchases || [], (record, row) => {
     appendCell(row, "Texnika", record.deviceName);
     appendCell(row, "Sotib olingan", formatShortDate(record.purchaseDate));
-    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+    appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
   });
 
   renderDashboardTable(warrantyTableBody, overview?.upcomingWarranty || [], (record, row) => {
     appendCell(row, "Texnika", record.deviceName);
     appendCell(row, "Kafolat", formatShortDate(record.warrantyUntil));
-    appendCell(row, "Holder", record.currentHolder || "-");
+    appendCell(row, "Egasi", record.currentHolder || "-");
   });
 
   renderDashboardTable(attentionTableBody, overview?.attentionItems || [], (record, row) => {
@@ -760,7 +760,7 @@ function renderDashboard(overview) {
 
   renderDashboardTable(latestChangesTableBody, overview?.latestChanges || [], (record, row) => {
     appendCell(row, "Texnika", record.deviceName);
-    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+    appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
     appendCell(row, "Yangilangan", formatDate(record.updatedAt));
   });
 }
@@ -831,7 +831,7 @@ function renderDepartments() {
   departmentsTableBody.innerHTML = "";
   getFilteredDepartments().forEach((department) => {
     const row = document.createElement("tr");
-    appendCell(row, "Bo'lim", department.name);
+    appendCell(row, "Bo'lim", localizeDepartmentName(department.name));
     appendCell(row, "Kod", department.code || "-");
     appendTagCell(row, "Holat", department.isActive ? "Faol" : "Nofaol", department.isActive ? "" : "tag--danger");
     appendCatalogActionCell(
@@ -858,7 +858,7 @@ function renderDevices() {
   getFilteredDevices().forEach((device) => {
     const row = document.createElement("tr");
     appendCell(row, "Texnika", device.name);
-    appendCell(row, "Kategoriya", device.category || "-");
+    appendCell(row, "Kategoriya", localizeDeviceCategory(device.category) || "-");
     appendTagCell(row, "Holat", device.isActive ? "Faol" : "Nofaol", device.isActive ? "" : "tag--danger");
     appendCatalogActionCell(
       row,
@@ -898,10 +898,10 @@ function renderAuditLogs(logs) {
     const row = document.createElement("tr");
     appendCell(row, "Sana", formatDate(log.createdAt));
     appendCell(row, "Foydalanuvchi", log.actorName || log.actorUsername || "-");
-    appendCell(row, "Rol", log.actorRole || "-");
-    appendCell(row, "Amal", log.action);
-    appendCell(row, "Entity", log.entityType);
-    appendCell(row, "Izoh", log.summary);
+    appendCell(row, "Rol", getRoleLabel(log.actorRole || "-"));
+    appendCell(row, "Amal", formatAuditActionLabel(log.action));
+    appendCell(row, "Turi", formatAuditEntityLabel(log.entityType));
+    appendCell(row, "Izoh", localizeUiText(log.summary));
     auditTableBody.appendChild(row);
   });
   auditEmptyState.style.display = logs.length ? "none" : "block";
@@ -1219,7 +1219,8 @@ function getUserPayload() {
 }
 
 function getRoleLabel(role) {
-  return state.roles.find((item) => item.value === role)?.label || role;
+  const label = state.roles.find((item) => item.value === role)?.label || role;
+  return localizeRoleLabel(label);
 }
 
 function normalizeSearchValue(value) {
@@ -1227,7 +1228,8 @@ function normalizeSearchValue(value) {
 }
 
 function formatDepartmentOption(department) {
-  return department.code ? `${department.name} (${department.code})` : department.name;
+  const name = localizeDepartmentName(department.name);
+  return department.code ? `${name} (${department.code})` : name;
 }
 
 function formatDeviceOption(device) {
@@ -1235,7 +1237,7 @@ function formatDeviceOption(device) {
   const normalizedName = String(device.name || "").toLowerCase();
 
   if (device.category) {
-    meta.push(device.category);
+    meta.push(localizeDeviceCategory(device.category));
   }
 
   if (device.model && !normalizedName.includes(String(device.model).toLowerCase())) {
@@ -1243,6 +1245,117 @@ function formatDeviceOption(device) {
   }
 
   return meta.length ? `${device.name} | ${meta.join(" | ")}` : device.name;
+}
+
+function localizeDepartmentName(value) {
+  const labels = {
+    "Software Engineering": "Dasturiy muhandislik",
+    "Frontend Development": "Interfeys ishlab chiqish",
+    "Backend Development": "Server tomoni ishlab chiqish",
+    "Mobile Development": "Mobil ishlab chiqish",
+    "QA & Test Automation": "Sifat nazorati va test avtomatlashtirish",
+    "DevOps & SRE": "Infratuzilma va barqarorlik",
+    "Product Management": "Mahsulot boshqaruvi",
+    "Project Management": "Loyiha boshqaruvi",
+    "UI/UX Design": "Interfeys va foydalanuvchi tajribasi dizayni",
+    "Data & Analytics": "Ma'lumotlar va tahlil",
+    Cybersecurity: "Kiberxavfsizlik",
+    "IT Support": "IT yordam",
+    "Infrastructure & Network": "Infratuzilma va tarmoq",
+    "HR & People Ops": "Kadrlar va xodimlar bilan ishlash",
+    "Finance & Accounting": "Moliya va buxgalteriya",
+    Sales: "Savdo",
+    Marketing: "Marketing",
+    "Customer Success": "Mijozlar bilan ishlash",
+  };
+
+  return labels[value] || value || "-";
+}
+
+function localizeDeviceCategory(value) {
+  const labels = {
+    Laptop: "Noutbuk",
+    Monitor: "Monitor",
+    "Docking Station": "Dok stansiya",
+    Keyboard: "Klaviatura",
+    Mouse: "Sichqoncha",
+    Headset: "Garnitura",
+    Webcam: "Veb-kamera",
+    Smartphone: "Smartfon",
+    Tablet: "Planshet",
+    Network: "Tarmoq uskunasi",
+    Power: "Quvvat qurilmasi",
+    Printer: "Printer",
+    Peripheral: "Periferiya",
+    Desktop: "Stol kompyuteri",
+  };
+
+  return labels[value] || value || "";
+}
+
+function localizeRoleLabel(value) {
+  const labels = {
+    Administrator: "Administrator",
+    Auditor: "Auditor",
+    Manager: "Menejer",
+    "IT Support": "IT yordam",
+    Viewer: "Kuzatuvchi",
+  };
+
+  return labels[value] || value || "-";
+}
+
+function formatAuditEntityLabel(value) {
+  const labels = {
+    auth: "Kirish",
+    inventory: "Inventar",
+    department: "Bo'lim",
+    device: "Texnika",
+    user: "Foydalanuvchi",
+    system: "Tizim",
+  };
+
+  return labels[value] || value || "-";
+}
+
+function formatAuditActionLabel(value) {
+  const labels = {
+    "auth.login_failed": "Kirish muvaffaqiyatsiz",
+    "auth.login_success": "Kirish muvaffaqiyatli",
+    "auth.logout": "Tizimdan chiqish",
+    "auth.password_change": "Parol yangilandi",
+    "inventory.create": "Inventar yozuvi yaratildi",
+    "inventory.update": "Inventar yozuvi yangilandi",
+    "inventory.delete": "Inventar yozuvi o'chirildi",
+    "inventory.service_log_create": "Servis yozuvi qo'shildi",
+    "inventory.attachment_create": "Fayl qo'shildi",
+    "inventory.import": "Inventar import qilindi",
+    "catalog.department_create": "Bo'lim qo'shildi",
+    "catalog.department_update": "Bo'lim yangilandi",
+    "catalog.department_delete": "Bo'lim o'chirildi",
+    "catalog.device_create": "Texnika qo'shildi",
+    "catalog.device_update": "Texnika yangilandi",
+    "catalog.device_delete": "Texnika o'chirildi",
+    "user.create": "Foydalanuvchi yaratildi",
+    "user.update": "Foydalanuvchi yangilandi",
+    "system.restore": "Tizim tiklandi",
+  };
+
+  return labels[value] || value || "-";
+}
+
+function localizeUiText(value) {
+  return String(value || "")
+    .replace(/\battachment\b/gi, "fayl")
+    .replace(/\battachments\b/gi, "fayllar")
+    .replace(/\bbackup\b/gi, "zaxira nusxasi")
+    .replace(/\brestore\b/gi, "tiklash")
+    .replace(/\bSystem summary\b/gi, "Tizim xulosasi")
+    .replace(/\bAsset tag\b/gi, "Aktiv tegi")
+    .replace(/\bStatus\b/gi, "Holati")
+    .replace(/\bSupplier\b/gi, "Yetkazib beruvchi")
+    .replace(/\bHolder\b/gi, "Egasi")
+    .trim() || "-";
 }
 
 function showQuickCatalogForm(type) {
