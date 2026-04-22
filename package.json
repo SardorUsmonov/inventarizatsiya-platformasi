@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test --test-concurrency=1 tests/**/*.test.js",
+    "render:persist": "node scripts/enable-render-persistence.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:url": "node scripts/smoke-url.mjs"
   },

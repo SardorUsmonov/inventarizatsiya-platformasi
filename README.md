@@ -103,3 +103,28 @@ $env:SMOKE_USERNAME="admin"
 $env:SMOKE_PASSWORD="<kuchli-parol>"
 npm.cmd run smoke:url
 ```
+
+## Doimiy saqlashni yoqish
+
+Render free plan ma'lumotlarni doimiy saqlashni kafolatlamaydi. To'liq production holat uchun `starter + persistent disk` kerak.
+
+1. Render billing sahifasida karta qo'shing:
+
+```text
+https://dashboard.render.com/billing
+```
+
+2. Keyin quyidagi buyruqni ishga tushiring:
+
+```powershell
+npm.cmd run render:persist
+```
+
+Bu skript quyidagini avtomatik bajaradi:
+
+- live saytdan backup oladi
+- service plan'ni `starter` ga o'tkazadi
+- `/app/data` uchun `1 GB` disk yaratadi
+- deploy qiladi
+- backup'ni qayta tiklaydi
+- restart qilib saqlanishni tekshiradi
