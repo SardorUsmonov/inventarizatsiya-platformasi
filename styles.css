@@ -306,6 +306,62 @@ button {
   gap: 14px;
 }
 
+.quick-catalog {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(44, 58, 49, 0.1);
+}
+
+.quick-catalog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+
+.quick-catalog h3,
+.quick-catalog-form h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.quick-catalog__text {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.quick-catalog__actions,
+.quick-catalog-form__grid {
+  display: grid;
+  gap: 10px;
+}
+
+.quick-catalog__actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-catalog__link {
+  white-space: nowrap;
+}
+
+.quick-catalog-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(13, 111, 95, 0.12);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.quick-catalog-form__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .field,
 .checkbox-field {
   display: grid;
@@ -529,10 +585,16 @@ tbody tr:nth-child(even) {
   .hero__meta,
   .panel__header,
   .panel__header--spread,
+  .quick-catalog__header,
   .session-chip,
   .tabs {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .quick-catalog__actions,
+  .quick-catalog-form__grid {
+    grid-template-columns: 1fr;
   }
 
   .toolbar,

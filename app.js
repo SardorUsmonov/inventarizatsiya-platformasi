@@ -24,6 +24,23 @@ const currentHolderInput = document.querySelector("#currentHolder");
 const submitButton = document.querySelector("#submitButton");
 const resetButton = document.querySelector("#resetButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
+const quickCatalogPanel = document.querySelector("#quickCatalogPanel");
+const openQuickDepartmentButton = document.querySelector("#openQuickDepartmentButton");
+const openQuickDeviceButton = document.querySelector("#openQuickDeviceButton");
+const openFullCatalogButton = document.querySelector("#openFullCatalogButton");
+const quickDepartmentForm = document.querySelector("#quickDepartmentForm");
+const quickDepartmentNameInput = document.querySelector("#quickDepartmentName");
+const quickDepartmentCodeInput = document.querySelector("#quickDepartmentCode");
+const quickDepartmentDescriptionInput = document.querySelector("#quickDepartmentDescription");
+const quickDepartmentSubmitButton = document.querySelector("#quickDepartmentSubmitButton");
+const quickDepartmentCancelButton = document.querySelector("#quickDepartmentCancelButton");
+const quickDeviceForm = document.querySelector("#quickDeviceForm");
+const quickDeviceNameInput = document.querySelector("#quickDeviceName");
+const quickDeviceCategoryInput = document.querySelector("#quickDeviceCategory");
+const quickDeviceModelInput = document.querySelector("#quickDeviceModel");
+const quickDeviceDescriptionInput = document.querySelector("#quickDeviceDescription");
+const quickDeviceSubmitButton = document.querySelector("#quickDeviceSubmitButton");
+const quickDeviceCancelButton = document.querySelector("#quickDeviceCancelButton");
 const searchInput = document.querySelector("#searchInput");
 const filterDepartmentSelect = document.querySelector("#filterDepartmentId");
 const filterDeviceSelect = document.querySelector("#filterDeviceId");
@@ -167,6 +184,53 @@ inventoryForm.addEventListener("reset", () => {
 });
 
 cancelEditButton.addEventListener("click", resetInventoryForm);
+openFullCatalogButton.addEventListener("click", () => activateTab("catalogs"));
+openQuickDepartmentButton.addEventListener("click", () => showQuickCatalogForm("department"));
+openQuickDeviceButton.addEventListener("click", () => showQuickCatalogForm("device"));
+quickDepartmentCancelButton.addEventListener("click", resetQuickDepartmentForm);
+quickDeviceCancelButton.addEventListener("click", resetQuickDeviceForm);
+
+quickDepartmentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  quickDepartmentSubmitButton.disabled = true;
+
+  try {
+    const response = await request("/api/departments", {
+      body: getQuickDepartmentPayload(),
+      method: "POST",
+    });
+
+    await refreshDashboardData();
+    departmentSelect.value = String(response.department.id);
+    resetQuickDepartmentForm();
+    showStatus("Yangi bo'lim/soha qo'shildi va darrov tanlandi.");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    quickDepartmentSubmitButton.disabled = false;
+  }
+});
+
+quickDeviceForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  quickDeviceSubmitButton.disabled = true;
+
+  try {
+    const response = await request("/api/devices", {
+      body: getQuickDevicePayload(),
+      method: "POST",
+    });
+
+    await refreshDashboardData();
+    deviceSelect.value = String(response.device.id);
+    resetQuickDeviceForm();
+    showStatus("Yangi texnika qo'shildi va darrov tanlandi.");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    quickDeviceSubmitButton.disabled = false;
+  }
+});
 
 refreshButton.addEventListener("click", async () => {
   refreshButton.disabled = true;
@@ -446,6 +510,7 @@ function applyPermissionUI() {
   importButton.classList.toggle("hidden", !state.permissions.importInventory);
   exportExcelButton.classList.toggle("hidden", !state.permissions.exportInventory);
   exportCsvButton.classList.toggle("hidden", !state.permissions.exportInventory);
+  quickCatalogPanel.classList.toggle("hidden", !canManageCatalogs);
   setFormEnabled(inventoryForm, canManageInventory);
   setFormEnabled(departmentForm, canManageCatalogs);
   setFormEnabled(deviceForm, canManageCatalogs);
@@ -483,7 +548,7 @@ function renderReferenceOptions() {
       label: formatDepartmentOption(item),
       value: String(item.id),
     })),
-    { placeholder: "Bo'limni tanlang" }
+    { keepValue: true, placeholder: "Bo'lim yoki sohani tanlang" }
   );
   fillSelectOptions(
     deviceSelect,
@@ -491,7 +556,7 @@ function renderReferenceOptions() {
       label: formatDeviceOption(item),
       value: String(item.id),
     })),
-    { placeholder: "Texnikani tanlang" }
+    { keepValue: true, placeholder: "Texnikani tanlang" }
   );
   fillSelectOptions(
     filterDepartmentSelect,
@@ -700,6 +765,16 @@ function resetInventoryForm() {
   cancelEditButton.classList.add("hidden");
 }
 
+function resetQuickDepartmentForm() {
+  quickDepartmentForm.reset();
+  quickDepartmentForm.classList.add("hidden");
+}
+
+function resetQuickDeviceForm() {
+  quickDeviceForm.reset();
+  quickDeviceForm.classList.add("hidden");
+}
+
 function resetDepartmentForm() {
   departmentForm.reset();
   departmentCatalogId.value = "";
@@ -785,6 +860,25 @@ function getDevicePayload() {
   };
 }
 
+function getQuickDepartmentPayload() {
+  return {
+    code: quickDepartmentCodeInput.value.trim(),
+    description: quickDepartmentDescriptionInput.value.trim(),
+    isActive: true,
+    name: quickDepartmentNameInput.value.trim(),
+  };
+}
+
+function getQuickDevicePayload() {
+  return {
+    category: quickDeviceCategoryInput.value.trim(),
+    description: quickDeviceDescriptionInput.value.trim(),
+    isActive: true,
+    model: quickDeviceModelInput.value.trim(),
+    name: quickDeviceNameInput.value.trim(),
+  };
+}
+
 function getUserPayload() {
   return {
     fullName: userFullNameInput.value.trim(),
@@ -815,7 +909,20 @@ function formatDeviceOption(device) {
     meta.push(device.model);
   }
 
-  return meta.length ? `${device.name} • ${meta.join(" • ")}` : device.name;
+  return meta.length ? `${device.name} | ${meta.join(" | ")}` : device.name;
+}
+
+function showQuickCatalogForm(type) {
+  if (type === "department") {
+    quickDeviceForm.classList.add("hidden");
+    quickDepartmentForm.classList.remove("hidden");
+    quickDepartmentNameInput.focus();
+    return;
+  }
+
+  quickDepartmentForm.classList.add("hidden");
+  quickDeviceForm.classList.remove("hidden");
+  quickDeviceNameInput.focus();
 }
 
 function showApp() {

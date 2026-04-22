@@ -140,7 +140,7 @@
             </label>
 
             <label class="field">
-              <span>Bo'lim</span>
+              <span>Bo'lim / soha</span>
               <select id="departmentId" required></select>
             </label>
 
@@ -164,6 +164,87 @@
               <button class="secondary-button" id="resetButton" type="reset">Tozalash</button>
             </div>
           </form>
+
+          <section class="quick-catalog hidden" id="quickCatalogPanel">
+            <div class="quick-catalog__header">
+              <div>
+                <p class="panel__eyebrow">Qo'lda qo'shish</p>
+                <h3>Kerakli bo'lim yoki texnikani shu yerning o'zidan yarating</h3>
+                <p class="quick-catalog__text">Yangi element saqlangach, u inventar formasida avtomatik tanlanadi.</p>
+              </div>
+              <button class="ghost-button quick-catalog__link" id="openFullCatalogButton" type="button">Kataloglarni ochish</button>
+            </div>
+
+            <div class="quick-catalog__actions">
+              <button class="secondary-button" id="openQuickDepartmentButton" type="button">Bo'lim/soha qo'shish</button>
+              <button class="secondary-button" id="openQuickDeviceButton" type="button">Texnika qo'shish</button>
+            </div>
+
+            <form class="quick-catalog-form hidden" id="quickDepartmentForm">
+              <div>
+                <p class="panel__eyebrow">Yangi bo'lim</p>
+                <h3>Bo'lim yoki soha qo'shish</h3>
+              </div>
+
+              <div class="quick-catalog-form__grid">
+                <label class="field">
+                  <span>Nomi</span>
+                  <input id="quickDepartmentName" type="text" placeholder="Masalan: AI Research" required>
+                </label>
+
+                <label class="field">
+                  <span>Kod</span>
+                  <input id="quickDepartmentCode" type="text" placeholder="Masalan: AIR">
+                </label>
+              </div>
+
+              <label class="field">
+                <span>Izoh</span>
+                <input id="quickDepartmentDescription" type="text" placeholder="Qisqa ta'rif">
+              </label>
+
+              <div class="form-actions">
+                <button class="primary-button" id="quickDepartmentSubmitButton" type="submit">Qo'shish</button>
+                <button class="ghost-button" id="quickDepartmentCancelButton" type="button">Bekor qilish</button>
+              </div>
+            </form>
+
+            <form class="quick-catalog-form hidden" id="quickDeviceForm">
+              <div>
+                <p class="panel__eyebrow">Yangi texnika</p>
+                <h3>Texnika qo'shish</h3>
+              </div>
+
+              <div class="quick-catalog-form__grid">
+                <label class="field">
+                  <span>Nomi</span>
+                  <input id="quickDeviceName" type="text" placeholder="Masalan: Lenovo ThinkCentre M90q" required>
+                </label>
+
+                <label class="field">
+                  <span>Kategoriya</span>
+                  <input id="quickDeviceCategory" type="text" placeholder="Masalan: Desktop">
+                </label>
+              </div>
+
+              <div class="quick-catalog-form__grid">
+                <label class="field">
+                  <span>Model</span>
+                  <input id="quickDeviceModel" type="text" placeholder="Masalan: M90q Gen 4">
+                </label>
+
+                <label class="field">
+                  <span>Izoh</span>
+                  <input id="quickDeviceDescription" type="text" placeholder="Qo'shimcha ma'lumot">
+                </label>
+              </div>
+
+              <div class="form-actions">
+                <button class="primary-button" id="quickDeviceSubmitButton" type="submit">Qo'shish</button>
+                <button class="ghost-button" id="quickDeviceCancelButton" type="button">Bekor qilish</button>
+              </div>
+            </form>
+          </section>
         </section>
 
         <section class="panel panel--list">
