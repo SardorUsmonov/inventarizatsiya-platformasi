@@ -66,6 +66,7 @@ const departmentIsActiveInput = document.querySelector("#departmentIsActive");
 const departmentSubmitButton = document.querySelector("#departmentSubmitButton");
 const cancelDepartmentEditButton = document.querySelector("#cancelDepartmentEditButton");
 const departmentsTableBody = document.querySelector("#departmentsTableBody");
+const departmentCatalogSearchInput = document.querySelector("#departmentCatalogSearch");
 const deviceForm = document.querySelector("#deviceForm");
 const deviceCatalogId = document.querySelector("#deviceCatalogId");
 const deviceCatalogNameInput = document.querySelector("#deviceCatalogName");
@@ -76,6 +77,7 @@ const deviceIsActiveInput = document.querySelector("#deviceIsActive");
 const deviceSubmitButton = document.querySelector("#deviceSubmitButton");
 const cancelDeviceEditButton = document.querySelector("#cancelDeviceEditButton");
 const devicesTableBody = document.querySelector("#devicesTableBody");
+const deviceCatalogSearchInput = document.querySelector("#deviceCatalogSearch");
 const catalogAccessNote = document.querySelector("#catalogAccessNote");
 const userForm = document.querySelector("#userForm");
 const userIdInput = document.querySelector("#userId");
@@ -97,6 +99,7 @@ const state = {
   activeTab: "inventory",
   auditDebounceId: 0,
   auditLogs: [],
+  catalogSearchDebounceId: 0,
   departments: [],
   devices: [],
   inventoryRecords: [],
@@ -189,6 +192,8 @@ openQuickDepartmentButton.addEventListener("click", () => showQuickCatalogForm("
 openQuickDeviceButton.addEventListener("click", () => showQuickCatalogForm("device"));
 quickDepartmentCancelButton.addEventListener("click", resetQuickDepartmentForm);
 quickDeviceCancelButton.addEventListener("click", resetQuickDeviceForm);
+departmentCatalogSearchInput.addEventListener("input", () => scheduleCatalogRender());
+deviceCatalogSearchInput.addEventListener("input", () => scheduleCatalogRender());
 
 quickDepartmentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -623,24 +628,52 @@ function renderInventory(records, stats) {
 
 function renderDepartments() {
   departmentsTableBody.innerHTML = "";
-  state.departments.forEach((department) => {
+  getFilteredDepartments().forEach((department) => {
     const row = document.createElement("tr");
     appendCell(row, "Bo'lim", department.name);
     appendCell(row, "Kod", department.code || "-");
     appendTagCell(row, "Holat", department.isActive ? "Faol" : "Nofaol", department.isActive ? "" : "tag--danger");
-    appendActionCell(row, state.permissions.manageCatalogs, () => fillDepartmentForm(department));
+    appendCatalogActionCell(
+      row,
+      state.permissions.manageCatalogs,
+      () => fillDepartmentForm(department),
+      async () => {
+        if (!window.confirm(`"${department.name}" bo'limini o'chirmoqchimisiz?`)) {
+          return;
+        }
+
+        await request(`/api/departments/${department.id}`, { method: "DELETE" });
+        await refreshDashboardData();
+        await loadInventory({ silent: true });
+        showStatus("Bo'lim katalogdan o'chirildi.");
+      }
+    );
     departmentsTableBody.appendChild(row);
   });
 }
 
 function renderDevices() {
   devicesTableBody.innerHTML = "";
-  state.devices.forEach((device) => {
+  getFilteredDevices().forEach((device) => {
     const row = document.createElement("tr");
     appendCell(row, "Texnika", device.name);
     appendCell(row, "Kategoriya", device.category || "-");
     appendTagCell(row, "Holat", device.isActive ? "Faol" : "Nofaol", device.isActive ? "" : "tag--danger");
-    appendActionCell(row, state.permissions.manageCatalogs, () => fillDeviceForm(device));
+    appendCatalogActionCell(
+      row,
+      state.permissions.manageCatalogs,
+      () => fillDeviceForm(device),
+      async () => {
+        if (!window.confirm(`"${device.name}" texnikasini o'chirmoqchimisiz?`)) {
+          return;
+        }
+
+        await request(`/api/devices/${device.id}`, { method: "DELETE" });
+        await refreshDashboardData();
+        await loadInventory({ silent: true });
+        showStatus("Texnika katalogdan o'chirildi.");
+      }
+    );
     devicesTableBody.appendChild(row);
   });
 }
@@ -699,6 +732,22 @@ function appendActionCell(row, canEdit, onEdit) {
     const wrapper = document.createElement("div");
     wrapper.className = "row-actions";
     wrapper.appendChild(createRowButton("Tahrirlash", onEdit));
+    cell.appendChild(wrapper);
+  }
+
+  row.appendChild(cell);
+}
+
+function appendCatalogActionCell(row, canEdit, onEdit, onDelete) {
+  const cell = document.createElement("td");
+  cell.dataset.label = "Amallar";
+  cell.textContent = canEdit ? "" : "Ko'rish";
+
+  if (canEdit) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "row-actions";
+    wrapper.appendChild(createRowButton("Tahrirlash", onEdit));
+    wrapper.appendChild(createRowButton("O'chirish", onDelete));
     cell.appendChild(wrapper);
   }
 
@@ -830,6 +879,40 @@ function fillSelectOptions(select, items, options = {}) {
   }
 }
 
+function getFilteredDepartments() {
+  const search = normalizeSearchValue(departmentCatalogSearchInput.value);
+
+  if (!search) {
+    return state.departments;
+  }
+
+  return state.departments.filter((department) => {
+    return [department.name, department.code, department.description]
+      .some((value) => normalizeSearchValue(value).includes(search));
+  });
+}
+
+function getFilteredDevices() {
+  const search = normalizeSearchValue(deviceCatalogSearchInput.value);
+
+  if (!search) {
+    return state.devices;
+  }
+
+  return state.devices.filter((device) => {
+    return [device.name, device.category, device.model, device.description]
+      .some((value) => normalizeSearchValue(value).includes(search));
+  });
+}
+
+function scheduleCatalogRender() {
+  window.clearTimeout(state.catalogSearchDebounceId);
+  state.catalogSearchDebounceId = window.setTimeout(() => {
+    renderDepartments();
+    renderDevices();
+  }, 180);
+}
+
 function getInventoryPayload() {
   return {
     currentHolder: currentHolderInput.value.trim(),
@@ -891,6 +974,10 @@ function getUserPayload() {
 
 function getRoleLabel(role) {
   return state.roles.find((item) => item.value === role)?.label || role;
+}
+
+function normalizeSearchValue(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function formatDepartmentOption(department) {

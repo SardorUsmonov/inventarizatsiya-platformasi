@@ -527,6 +527,52 @@ app.put("/api/departments/:id", requirePermission("manageCatalogs"), (request, r
   });
 });
 
+app.delete("/api/departments/:id", requirePermission("manageCatalogs"), (request, response) => {
+  const departmentId = parsePositiveInteger(request.params.id);
+
+  if (!departmentId) {
+    response.status(400).json({
+      message: "Bo'lim identifikatori noto'g'ri.",
+    });
+    return;
+  }
+
+  const currentDepartment = database.getDepartmentById(departmentId);
+
+  if (!currentDepartment) {
+    response.status(404).json({
+      message: "Bo'lim topilmadi.",
+    });
+    return;
+  }
+
+  const usageCount = database.getInventoryUsageByDepartmentId(departmentId);
+
+  if (usageCount > 0) {
+    response.status(409).json({
+      message: "Bu bo'lim inventar yozuvlariga bog'langan. Avval yozuvlarni boshqa bo'limga o'tkazing yoki bo'limni nofaol qiling.",
+    });
+    return;
+  }
+
+  const department = database.deleteDepartment(departmentId);
+
+  database.logAudit({
+    action: "catalog.department_delete",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: department,
+    entityId: department.id,
+    entityType: "department",
+    ipAddress: request.ip,
+    summary: `${department.name} bo'limi katalogdan o'chirildi.`,
+  });
+
+  response.status(204).end();
+});
+
 app.post("/api/devices", requirePermission("manageCatalogs"), (request, response) => {
   const payload = validateDevicePayload(request.body);
 
@@ -621,6 +667,52 @@ app.put("/api/devices/:id", requirePermission("manageCatalogs"), (request, respo
   response.json({
     device,
   });
+});
+
+app.delete("/api/devices/:id", requirePermission("manageCatalogs"), (request, response) => {
+  const deviceId = parsePositiveInteger(request.params.id);
+
+  if (!deviceId) {
+    response.status(400).json({
+      message: "Texnika identifikatori noto'g'ri.",
+    });
+    return;
+  }
+
+  const currentDevice = database.getDeviceById(deviceId);
+
+  if (!currentDevice) {
+    response.status(404).json({
+      message: "Texnika topilmadi.",
+    });
+    return;
+  }
+
+  const usageCount = database.getInventoryUsageByDeviceId(deviceId);
+
+  if (usageCount > 0) {
+    response.status(409).json({
+      message: "Bu texnika inventar yozuvlariga bog'langan. Avval yozuvlarni boshqa texnikaga o'tkazing yoki texnikani nofaol qiling.",
+    });
+    return;
+  }
+
+  const device = database.deleteDevice(deviceId);
+
+  database.logAudit({
+    action: "catalog.device_delete",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: device,
+    entityId: device.id,
+    entityType: "device",
+    ipAddress: request.ip,
+    summary: `${device.name} texnikasi katalogdan o'chirildi.`,
+  });
+
+  response.status(204).end();
 });
 
 app.get("/api/users", requirePermission("manageUsers"), (_request, response) => {

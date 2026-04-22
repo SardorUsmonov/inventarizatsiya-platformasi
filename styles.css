@@ -414,6 +414,10 @@ button {
   font-weight: 700;
 }
 
+.catalog-toolbar {
+  margin-bottom: 18px;
+}
+
 .form-actions,
 .toolbar,
 .row-actions {

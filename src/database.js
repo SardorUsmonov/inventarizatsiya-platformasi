@@ -161,8 +161,28 @@ function createDatabase(config) {
       database.prepare("DELETE FROM inventory_records WHERE id = ?").run(recordId);
       return existingRecord;
     },
+    deleteDepartment(departmentId) {
+      const existingDepartment = this.getDepartmentById(departmentId);
+
+      if (!existingDepartment) {
+        return null;
+      }
+
+      database.prepare("DELETE FROM departments WHERE id = ?").run(departmentId);
+      return existingDepartment;
+    },
     deleteSessionByTokenHash(tokenHash) {
       database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
+    },
+    deleteDevice(deviceId) {
+      const existingDevice = this.getDeviceById(deviceId);
+
+      if (!existingDevice) {
+        return null;
+      }
+
+      database.prepare("DELETE FROM devices WHERE id = ?").run(deviceId);
+      return existingDevice;
     },
     getDepartmentById(departmentId) {
       return mapDepartment(
@@ -276,6 +296,24 @@ function createDatabase(config) {
           ${buildInventoryWhereClause()}
         `)
         .get(buildInventoryParams(filters));
+    },
+    getInventoryUsageByDepartmentId(departmentId) {
+      return database
+        .prepare(`
+          SELECT COUNT(*) AS total
+          FROM inventory_records
+          WHERE department_id = ?
+        `)
+        .get(departmentId).total;
+    },
+    getInventoryUsageByDeviceId(deviceId) {
+      return database
+        .prepare(`
+          SELECT COUNT(*) AS total
+          FROM inventory_records
+          WHERE device_id = ?
+        `)
+        .get(deviceId).total;
     },
     getSessionByTokenHash(tokenHash) {
       return database

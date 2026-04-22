@@ -119,6 +119,49 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   const audit = await admin.request("/api/audit-logs?entityType=inventory");
   assert.equal(audit.response.status, 200);
   assert.ok(audit.payload.logs.length >= 1);
+
+  const blockedDepartmentDelete = await admin.request(`/api/departments/${department.payload.department.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(blockedDepartmentDelete.response.status, 409);
+
+  const blockedDeviceDelete = await admin.request(`/api/devices/${device.payload.device.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(blockedDeviceDelete.response.status, 409);
+
+  const removableDepartment = await admin.request("/api/departments", {
+    body: {
+      code: "LAB",
+      description: "Temporary lab",
+      isActive: true,
+      name: "Lab Support",
+    },
+    method: "POST",
+  });
+  assert.equal(removableDepartment.response.status, 201);
+
+  const removableDevice = await admin.request("/api/devices", {
+    body: {
+      category: "Peripheral",
+      description: "Temporary spare hardware",
+      isActive: true,
+      model: "Travel Hub",
+      name: "USB-C Travel Hub",
+    },
+    method: "POST",
+  });
+  assert.equal(removableDevice.response.status, 201);
+
+  const deletedDepartment = await admin.request(`/api/departments/${removableDepartment.payload.department.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedDepartment.response.status, 204);
+
+  const deletedDevice = await admin.request(`/api/devices/${removableDevice.payload.device.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedDevice.response.status, 204);
 });
 
 test("viewer is restricted from modifying inventory", { concurrency: false }, async () => {
