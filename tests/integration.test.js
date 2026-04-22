@@ -47,7 +47,7 @@ test.after(async () => {
   await fs.rm(tempDir, { force: true, recursive: true });
 });
 
-test("admin can manage catalogs, inventory, export and audit", async () => {
+test("admin can manage catalogs, inventory, export and audit", { concurrency: false }, async () => {
   const admin = createClient();
   const login = await admin.request("/api/auth/login", {
     body: {
@@ -59,6 +59,11 @@ test("admin can manage catalogs, inventory, export and audit", async () => {
 
   assert.equal(login.response.status, 200);
   assert.equal(login.payload.user.role, "admin");
+
+  const dashboard = await admin.request("/api/dashboard");
+  assert.equal(dashboard.response.status, 200);
+  assert.ok(dashboard.payload.departments.some((item) => item.name === "DevOps & SRE"));
+  assert.ok(dashboard.payload.devices.some((item) => item.name === "Dell Latitude 7440"));
 
   const department = await admin.request("/api/departments", {
     body: {
@@ -116,7 +121,7 @@ test("admin can manage catalogs, inventory, export and audit", async () => {
   assert.ok(audit.payload.logs.length >= 1);
 });
 
-test("viewer is restricted from modifying inventory", async () => {
+test("viewer is restricted from modifying inventory", { concurrency: false }, async () => {
   const admin = createClient();
   await admin.request("/api/auth/login", {
     body: {
@@ -168,7 +173,7 @@ test("viewer is restricted from modifying inventory", async () => {
   assert.equal(forbiddenCreate.response.status, 403);
 });
 
-test("excel import works and logout clears session", async () => {
+test("excel import works and logout clears session", { concurrency: false }, async () => {
   const admin = createClient();
   await admin.request("/api/auth/login", {
     body: {

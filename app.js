@@ -474,24 +474,39 @@ function renderRoleOptions() {
 }
 
 function renderReferenceOptions() {
+  const activeDepartments = state.departments.filter((item) => item.isActive);
+  const activeDevices = state.devices.filter((item) => item.isActive);
+
   fillSelectOptions(
     departmentSelect,
-    state.departments.map((item) => ({ label: item.name, value: String(item.id) })),
+    activeDepartments.map((item) => ({
+      label: formatDepartmentOption(item),
+      value: String(item.id),
+    })),
     { placeholder: "Bo'limni tanlang" }
   );
   fillSelectOptions(
     deviceSelect,
-    state.devices.map((item) => ({ label: item.name, value: String(item.id) })),
+    activeDevices.map((item) => ({
+      label: formatDeviceOption(item),
+      value: String(item.id),
+    })),
     { placeholder: "Texnikani tanlang" }
   );
   fillSelectOptions(
     filterDepartmentSelect,
-    state.departments.map((item) => ({ label: item.name, value: String(item.id) })),
+    state.departments.map((item) => ({
+      label: formatDepartmentOption(item),
+      value: String(item.id),
+    })),
     { keepValue: true, placeholder: "Barcha bo'limlar" }
   );
   fillSelectOptions(
     filterDeviceSelect,
-    state.devices.map((item) => ({ label: item.name, value: String(item.id) })),
+    state.devices.map((item) => ({
+      label: formatDeviceOption(item),
+      value: String(item.id),
+    })),
     { keepValue: true, placeholder: "Barcha texnikalar" }
   );
 }
@@ -782,6 +797,25 @@ function getUserPayload() {
 
 function getRoleLabel(role) {
   return state.roles.find((item) => item.value === role)?.label || role;
+}
+
+function formatDepartmentOption(department) {
+  return department.code ? `${department.name} (${department.code})` : department.name;
+}
+
+function formatDeviceOption(device) {
+  const meta = [];
+  const normalizedName = String(device.name || "").toLowerCase();
+
+  if (device.category) {
+    meta.push(device.category);
+  }
+
+  if (device.model && !normalizedName.includes(String(device.model).toLowerCase())) {
+    meta.push(device.model);
+  }
+
+  return meta.length ? `${device.name} • ${meta.join(" • ")}` : device.name;
 }
 
 function showApp() {

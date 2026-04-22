@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
 const { hashPassword } = require("./auth");
+const { defaultDepartments, defaultDevices } = require("./catalog-presets");
 
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
@@ -10,6 +11,7 @@ function createDatabase(config) {
   const database = new DatabaseSync(config.databasePath);
   initializeDatabase(database);
   seedDefaultAdmin(database, config);
+  seedRecommendedCatalogs(database);
   seedCatalogsFromInventory(database);
   syncInventoryCatalogLinks(database);
 
@@ -825,6 +827,16 @@ function seedCatalogsFromInventory(database) {
   });
 }
 
+function seedRecommendedCatalogs(database) {
+  defaultDepartments.forEach((department) => {
+    insertDepartmentIfMissing(database, department);
+  });
+
+  defaultDevices.forEach((device) => {
+    insertDeviceIfMissing(database, device);
+  });
+}
+
 function syncInventoryCatalogLinks(database) {
   database.exec(`
     UPDATE inventory_records
@@ -957,6 +969,20 @@ function ensureDeviceByName(database, name) {
 }
 
 function insertDepartmentIfMissing(database, name) {
+  const payload =
+    typeof name === "string"
+      ? {
+          code: "",
+          description: "",
+          isActive: true,
+          name,
+        }
+      : {
+          code: name.code || "",
+          description: name.description || "",
+          isActive: name.isActive !== false,
+          name: name.name,
+        };
   const now = getNow();
   database
     .prepare(`
@@ -967,12 +993,35 @@ function insertDepartmentIfMissing(database, name) {
         is_active,
         created_at,
         updated_at
-      ) VALUES (?, '', '', 1, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?)
     `)
-    .run(normalizeText(name), now, now);
+    .run(
+      normalizeText(payload.name),
+      normalizeText(payload.code),
+      normalizeText(payload.description),
+      payload.isActive ? 1 : 0,
+      now,
+      now
+    );
 }
 
 function insertDeviceIfMissing(database, name) {
+  const payload =
+    typeof name === "string"
+      ? {
+          category: "",
+          description: "",
+          isActive: true,
+          model: "",
+          name,
+        }
+      : {
+          category: name.category || "",
+          description: name.description || "",
+          isActive: name.isActive !== false,
+          model: name.model || "",
+          name: name.name,
+        };
   const now = getNow();
   database
     .prepare(`
@@ -984,9 +1033,17 @@ function insertDeviceIfMissing(database, name) {
         is_active,
         created_at,
         updated_at
-      ) VALUES (?, '', '', '', 1, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
-    .run(normalizeText(name), now, now);
+    .run(
+      normalizeText(payload.name),
+      normalizeText(payload.category),
+      normalizeText(payload.model),
+      normalizeText(payload.description),
+      payload.isActive ? 1 : 0,
+      now,
+      now
+    );
 }
 
 function buildInventoryWhereClause() {
