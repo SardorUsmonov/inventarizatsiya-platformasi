@@ -64,6 +64,8 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(dashboard.response.status, 200);
   assert.ok(dashboard.payload.departments.some((item) => item.name === "DevOps & SRE"));
   assert.ok(dashboard.payload.devices.some((item) => item.name === "Dell Latitude 7440"));
+  assert.ok(Array.isArray(dashboard.payload.inventoryMeta.assetStatuses));
+  assert.ok(Array.isArray(dashboard.payload.inventoryMeta.conditionStatuses));
 
   const department = await admin.request("/api/departments", {
     body: {
@@ -88,25 +90,46 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
 
   const record = await admin.request("/api/inventory", {
     body: {
+      accessories: "Dell dock, Logitech mouse",
+      assetStatus: "in_use",
+      assetTag: "NB-5520-01",
+      assignedAt: "2026-02-01",
+      conditionStatus: "excellent",
       currentHolder: "Ali Karimov",
       departmentId: department.payload.department.id,
       deviceId: device.payload.device.id,
       firstName: "Ali",
       lastName: "Karimov",
+      notes: "Backend engineer uchun asosiy noutbuk",
+      officeLocation: "Toshkent HQ",
       previousHolder: "-",
+      purchaseDate: "2026-01-10",
+      serialNumber: "SN-5520-001",
+      supplier: "Dell Uzbekistan",
+      warrantyUntil: "2028-01-10",
     },
     method: "POST",
   });
 
   assert.equal(record.response.status, 201);
+  assert.equal(record.payload.record.assetTag, "NB-5520-01");
+  assert.equal(record.payload.record.assetStatus, "in_use");
+  assert.equal(record.payload.record.conditionStatus, "excellent");
 
-  const inventory = await admin.request("/api/inventory?search=Latitude");
+  const inventory = await admin.request("/api/inventory?search=NB-5520-01");
   assert.equal(inventory.response.status, 200);
   assert.equal(inventory.payload.records.length, 1);
+  assert.equal(inventory.payload.records[0].serialNumber, "SN-5520-001");
+
+  const refreshedDashboard = await admin.request("/api/dashboard");
+  assert.equal(refreshedDashboard.payload.overview.stats.inUseCount, 1);
+  assert.equal(refreshedDashboard.payload.overview.stats.purchasedThisYearCount, 1);
+  assert.equal(refreshedDashboard.payload.overview.recentPurchases[0].assetTag, "NB-5520-01");
 
   const csvExport = await admin.request("/api/inventory/export/csv");
   assert.equal(csvExport.response.status, 200);
   assert.match(csvExport.text, /Dell Latitude 5520/);
+  assert.match(csvExport.text, /NB-5520-01/);
 
   const xlsxExport = await admin.request("/api/inventory/export/xlsx");
   assert.equal(xlsxExport.response.status, 200);
@@ -228,8 +251,34 @@ test("excel import works and logout clears session", { concurrency: false }, asy
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Inventar");
-  sheet.addRow(["Ism", "Familya", "Bo'lim", "Texnika nomi", "Oldin kimda", "Hozir kimda"]);
-  sheet.addRow(["Malika", "Tursunova", "Buxgalteriya", "HP ProBook 450", "-", "Malika Tursunova"]);
+  sheet.addRow([
+    "Ism",
+    "Familya",
+    "Bo'lim",
+    "Texnika nomi",
+    "Asset tag",
+    "Status",
+    "Holati",
+    "Sotib olingan sana",
+    "Kafolat muddati",
+    "Qo'shimcha texnikalar",
+    "Oldin kimda",
+    "Hozir kimda",
+  ]);
+  sheet.addRow([
+    "Malika",
+    "Tursunova",
+    "Buxgalteriya",
+    "HP ProBook 450",
+    "NB-PROBOOK-01",
+    "Ishlatilmoqda",
+    "Yaxshi",
+    "2026-03-01",
+    "2028-03-01",
+    "Sichqoncha, sumka",
+    "-",
+    "Malika Tursunova",
+  ]);
   const fileBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
   const formData = new FormData();
@@ -252,6 +301,8 @@ test("excel import works and logout clears session", { concurrency: false }, asy
 
   const search = await admin.request("/api/inventory?search=ProBook");
   assert.equal(search.payload.records.length, 1);
+  assert.equal(search.payload.records[0].assetTag, "NB-PROBOOK-01");
+  assert.equal(search.payload.records[0].accessories, "Sichqoncha, sumka");
 
   const logout = await admin.request("/api/auth/logout", { method: "POST" });
   assert.equal(logout.response.status, 204);

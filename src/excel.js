@@ -1,4 +1,10 @@
 const ExcelJS = require("exceljs");
+const {
+  getAssetStatusLabel,
+  getConditionStatusLabel,
+  listAssetStatuses,
+  listConditionStatuses,
+} = require("./inventory-options");
 
 async function createInventoryWorkbook(records) {
   const workbook = new ExcelJS.Workbook();
@@ -9,6 +15,17 @@ async function createInventoryWorkbook(records) {
     { header: "Familya", key: "lastName", width: 22 },
     { header: "Bo'lim", key: "department", width: 24 },
     { header: "Texnika nomi", key: "deviceName", width: 28 },
+    { header: "Asset tag", key: "assetTag", width: 18 },
+    { header: "Serial raqam", key: "serialNumber", width: 24 },
+    { header: "Status", key: "assetStatus", width: 18 },
+    { header: "Holati", key: "conditionStatus", width: 18 },
+    { header: "Sotib olingan sana", key: "purchaseDate", width: 18 },
+    { header: "Biriktirilgan sana", key: "assignedAt", width: 18 },
+    { header: "Kafolat muddati", key: "warrantyUntil", width: 18 },
+    { header: "Yetkazib beruvchi", key: "supplier", width: 22 },
+    { header: "Joylashuv", key: "officeLocation", width: 22 },
+    { header: "Qo'shimcha texnikalar", key: "accessories", width: 30 },
+    { header: "Izoh", key: "notes", width: 30 },
     { header: "Oldin kimda", key: "previousHolder", width: 24 },
     { header: "Hozir kimda", key: "currentHolder", width: 24 },
     { header: "Yaratilgan sana", key: "createdAt", width: 22 },
@@ -25,6 +42,17 @@ async function createInventoryWorkbook(records) {
       deviceName: record.deviceName,
       firstName: record.firstName,
       lastName: record.lastName,
+      assetTag: record.assetTag,
+      serialNumber: record.serialNumber,
+      assetStatus: getAssetStatusLabel(record.assetStatus),
+      conditionStatus: getConditionStatusLabel(record.conditionStatus),
+      purchaseDate: record.purchaseDate,
+      assignedAt: record.assignedAt,
+      warrantyUntil: record.warrantyUntil,
+      supplier: record.supplier,
+      officeLocation: record.officeLocation,
+      accessories: record.accessories,
+      notes: record.notes,
       previousHolder: record.previousHolder,
       updatedAt: formatDate(record.updatedAt),
     });
@@ -42,6 +70,17 @@ async function createInventoryTemplateWorkbook(payload) {
     { header: "Familya", key: "lastName", width: 22 },
     { header: "Bo'lim", key: "department", width: 24 },
     { header: "Texnika nomi", key: "deviceName", width: 28 },
+    { header: "Asset tag", key: "assetTag", width: 18 },
+    { header: "Serial raqam", key: "serialNumber", width: 24 },
+    { header: "Status", key: "assetStatus", width: 18 },
+    { header: "Holati", key: "conditionStatus", width: 18 },
+    { header: "Sotib olingan sana", key: "purchaseDate", width: 18 },
+    { header: "Biriktirilgan sana", key: "assignedAt", width: 18 },
+    { header: "Kafolat muddati", key: "warrantyUntil", width: 18 },
+    { header: "Yetkazib beruvchi", key: "supplier", width: 22 },
+    { header: "Joylashuv", key: "officeLocation", width: 22 },
+    { header: "Qo'shimcha texnikalar", key: "accessories", width: 30 },
+    { header: "Izoh", key: "notes", width: 30 },
     { header: "Oldin kimda", key: "previousHolder", width: 24 },
     { header: "Hozir kimda", key: "currentHolder", width: 24 },
   ];
@@ -53,6 +92,17 @@ async function createInventoryTemplateWorkbook(payload) {
     deviceName: payload.devices[0]?.name || "Dell Latitude 5520",
     firstName: "Ali",
     lastName: "Karimov",
+    assetTag: "NB-001",
+    serialNumber: "SN-4455-2026",
+    assetStatus: getAssetStatusLabel("in_use"),
+    conditionStatus: getConditionStatusLabel("excellent"),
+    purchaseDate: "2026-01-12",
+    assignedAt: "2026-01-15",
+    warrantyUntil: "2028-01-12",
+    supplier: "Dell Uzbekistan",
+    officeLocation: "Toshkent HQ, 3-qavat",
+    accessories: "Dock, sichqoncha, sumka",
+    notes: "Frontend developer uchun tayinlangan",
     previousHolder: "Murod Usmonov",
   });
 
@@ -84,6 +134,26 @@ async function createInventoryTemplateWorkbook(payload) {
     });
   });
 
+  const assetStatusesSheet = workbook.addWorksheet("Statuslar");
+  assetStatusesSheet.columns = [
+    { header: "Kod", key: "value", width: 20 },
+    { header: "Nomi", key: "label", width: 28 },
+  ];
+  styleHeader(assetStatusesSheet.getRow(1));
+  listAssetStatuses().forEach((status) => {
+    assetStatusesSheet.addRow(status);
+  });
+
+  const conditionStatusesSheet = workbook.addWorksheet("Holatlar");
+  conditionStatusesSheet.columns = [
+    { header: "Kod", key: "value", width: 20 },
+    { header: "Nomi", key: "label", width: 28 },
+  ];
+  styleHeader(conditionStatusesSheet.getRow(1));
+  listConditionStatuses().forEach((status) => {
+    conditionStatusesSheet.addRow(status);
+  });
+
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
@@ -113,13 +183,24 @@ async function parseInventoryWorkbook(buffer) {
     .getRows(2, Math.max(sheet.rowCount - 1, 0))
     ?.map((row) => {
       const parsedRow = {
+        accessories: "",
+        assetStatus: "",
+        assetTag: "",
+        assignedAt: "",
+        conditionStatus: "",
         currentHolder: "",
         department: "",
         deviceName: "",
         firstName: "",
         lastName: "",
+        notes: "",
+        officeLocation: "",
         previousHolder: "-",
+        purchaseDate: "",
         rowNumber: row.number,
+        serialNumber: "",
+        supplier: "",
+        warrantyUntil: "",
       };
 
       row.eachCell((cell, columnNumber) => {
@@ -144,6 +225,17 @@ async function parseInventoryWorkbook(buffer) {
         row.lastName ||
         row.department ||
         row.deviceName ||
+        row.assetTag ||
+        row.serialNumber ||
+        row.assetStatus ||
+        row.conditionStatus ||
+        row.purchaseDate ||
+        row.assignedAt ||
+        row.warrantyUntil ||
+        row.supplier ||
+        row.officeLocation ||
+        row.accessories ||
+        row.notes ||
         row.previousHolder ||
         row.currentHolder
       );
@@ -151,15 +243,32 @@ async function parseInventoryWorkbook(buffer) {
 }
 
 const HEADER_TO_FIELD = {
+  "asset tag": "assetTag",
   "bolim": "department",
   "bo lim": "department",
   "bo'lim": "department",
   "familya": "lastName",
+  "holati": "conditionStatus",
   "hozir kimda": "currentHolder",
   "ism": "firstName",
+  "izoh": "notes",
+  "joylashuv": "officeLocation",
+  "kafolat muddati": "warrantyUntil",
   "oldin kimda": "previousHolder",
+  "qoshimcha texnikalar": "accessories",
+  "qo shimcha texnikalar": "accessories",
+  "qo'shimcha texnikalar": "accessories",
+  "serial": "serialNumber",
+  "serial raqam": "serialNumber",
+  "sotib olingan sana": "purchaseDate",
+  "status": "assetStatus",
+  "supplier": "supplier",
+  "ta'minotchi": "supplier",
   "texnika": "deviceName",
+  "oldin kimda": "previousHolder",
   "texnika nomi": "deviceName",
+  "biriktirilgan sana": "assignedAt",
+  "yetkazib beruvchi": "supplier",
 };
 
 function normalizeHeader(value) {
@@ -174,6 +283,10 @@ function normalizeHeader(value) {
 function valueToString(value) {
   if (value == null) {
     return "";
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
   }
 
   if (typeof value === "object") {

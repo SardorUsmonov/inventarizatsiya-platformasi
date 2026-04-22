@@ -19,8 +19,19 @@ const firstNameInput = document.querySelector("#firstName");
 const lastNameInput = document.querySelector("#lastName");
 const departmentSelect = document.querySelector("#departmentId");
 const deviceSelect = document.querySelector("#deviceId");
+const assetTagInput = document.querySelector("#assetTag");
+const serialNumberInput = document.querySelector("#serialNumber");
+const assetStatusSelect = document.querySelector("#assetStatus");
+const conditionStatusSelect = document.querySelector("#conditionStatus");
+const purchaseDateInput = document.querySelector("#purchaseDate");
+const assignedAtInput = document.querySelector("#assignedAt");
+const warrantyUntilInput = document.querySelector("#warrantyUntil");
+const supplierInput = document.querySelector("#supplier");
+const officeLocationInput = document.querySelector("#officeLocation");
+const accessoriesInput = document.querySelector("#accessories");
 const previousHolderInput = document.querySelector("#previousHolder");
 const currentHolderInput = document.querySelector("#currentHolder");
+const notesInput = document.querySelector("#notes");
 const submitButton = document.querySelector("#submitButton");
 const resetButton = document.querySelector("#resetButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
@@ -44,6 +55,8 @@ const quickDeviceCancelButton = document.querySelector("#quickDeviceCancelButton
 const searchInput = document.querySelector("#searchInput");
 const filterDepartmentSelect = document.querySelector("#filterDepartmentId");
 const filterDeviceSelect = document.querySelector("#filterDeviceId");
+const filterAssetStatusSelect = document.querySelector("#filterAssetStatus");
+const filterConditionStatusSelect = document.querySelector("#filterConditionStatus");
 const refreshButton = document.querySelector("#refreshButton");
 const downloadTemplateButton = document.querySelector("#downloadTemplateButton");
 const importButton = document.querySelector("#importButton");
@@ -57,6 +70,19 @@ const tableSummary = document.querySelector("#tableSummary");
 const totalRecordsElement = document.querySelector("#totalRecords");
 const totalDepartmentsElement = document.querySelector("#totalDepartments");
 const activeDevicesElement = document.querySelector("#activeDevices");
+const dashboardInUseCountElement = document.querySelector("#dashboardInUseCount");
+const dashboardInStockCountElement = document.querySelector("#dashboardInStockCount");
+const dashboardRepairCountElement = document.querySelector("#dashboardRepairCount");
+const dashboardWarrantyCountElement = document.querySelector("#dashboardWarrantyCount");
+const dashboardAccessoryCountElement = document.querySelector("#dashboardAccessoryCount");
+const dashboardPurchasedThisYearCountElement = document.querySelector("#dashboardPurchasedThisYearCount");
+const dashboardStatusList = document.querySelector("#dashboardStatusList");
+const dashboardConditionList = document.querySelector("#dashboardConditionList");
+const dashboardDepartmentList = document.querySelector("#dashboardDepartmentList");
+const recentPurchasesTableBody = document.querySelector("#recentPurchasesTableBody");
+const warrantyTableBody = document.querySelector("#warrantyTableBody");
+const attentionTableBody = document.querySelector("#attentionTableBody");
+const latestChangesTableBody = document.querySelector("#latestChangesTableBody");
 const departmentForm = document.querySelector("#departmentForm");
 const departmentCatalogId = document.querySelector("#departmentCatalogId");
 const departmentNameInput = document.querySelector("#departmentName");
@@ -96,10 +122,13 @@ const auditTableBody = document.querySelector("#auditTableBody");
 const auditEmptyState = document.querySelector("#auditEmptyState");
 
 const state = {
-  activeTab: "inventory",
+  activeTab: "dashboard",
+  assetStatuses: [],
   auditDebounceId: 0,
   auditLogs: [],
   catalogSearchDebounceId: 0,
+  conditionStatuses: [],
+  dashboardOverview: null,
   departments: [],
   devices: [],
   inventoryRecords: [],
@@ -257,6 +286,8 @@ searchInput.addEventListener("input", () => {
 
 filterDepartmentSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
 filterDeviceSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
+filterAssetStatusSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
+filterConditionStatusSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
 downloadTemplateButton.addEventListener("click", () => window.open("/api/inventory/template", "_blank", "noopener"));
 importButton.addEventListener("click", () => importFileInput.click());
 exportExcelButton.addEventListener("click", () => downloadInventory("/api/inventory/export/xlsx"));
@@ -418,6 +449,9 @@ async function refreshDashboardData() {
   const payload = await request("/api/dashboard");
   state.departments = payload.departments || [];
   state.devices = payload.devices || [];
+  state.assetStatuses = payload.inventoryMeta?.assetStatuses || [];
+  state.conditionStatuses = payload.inventoryMeta?.conditionStatuses || [];
+  state.dashboardOverview = payload.overview || null;
   state.users = payload.users || [];
   state.auditLogs = payload.auditLogs || [];
   state.roles = payload.roles || [];
@@ -425,6 +459,7 @@ async function refreshDashboardData() {
   renderSessionIdentity();
   renderRoleOptions();
   renderReferenceOptions();
+  renderDashboard(state.dashboardOverview);
   renderDepartments();
   renderDevices();
   renderUsers();
@@ -451,6 +486,14 @@ async function loadInventory(options = {}) {
 
   if (filterDeviceSelect.value) {
     url.searchParams.set("deviceId", filterDeviceSelect.value);
+  }
+
+  if (filterAssetStatusSelect.value) {
+    url.searchParams.set("assetStatus", filterAssetStatusSelect.value);
+  }
+
+  if (filterConditionStatusSelect.value) {
+    url.searchParams.set("conditionStatus", filterConditionStatusSelect.value);
   }
 
   if (!options.silent) {
@@ -523,7 +566,7 @@ function applyPermissionUI() {
 }
 
 function setFormEnabled(form, enabled) {
-  [...form.querySelectorAll("input, select, button")].forEach((element) => {
+  [...form.querySelectorAll("input, select, textarea, button")].forEach((element) => {
     if (element.type !== "hidden") {
       element.disabled = !enabled;
     }
@@ -564,6 +607,22 @@ function renderReferenceOptions() {
     { keepValue: true, placeholder: "Texnikani tanlang" }
   );
   fillSelectOptions(
+    assetStatusSelect,
+    state.assetStatuses.map((item) => ({
+      label: item.label,
+      value: item.value,
+    })),
+    { keepValue: true }
+  );
+  fillSelectOptions(
+    conditionStatusSelect,
+    state.conditionStatuses.map((item) => ({
+      label: item.label,
+      value: item.value,
+    })),
+    { keepValue: true }
+  );
+  fillSelectOptions(
     filterDepartmentSelect,
     state.departments.map((item) => ({
       label: formatDepartmentOption(item),
@@ -579,6 +638,30 @@ function renderReferenceOptions() {
     })),
     { keepValue: true, placeholder: "Barcha texnikalar" }
   );
+  fillSelectOptions(
+    filterAssetStatusSelect,
+    state.assetStatuses.map((item) => ({
+      label: item.label,
+      value: item.value,
+    })),
+    { keepValue: true, placeholder: "Barcha statuslar" }
+  );
+  fillSelectOptions(
+    filterConditionStatusSelect,
+    state.conditionStatuses.map((item) => ({
+      label: item.label,
+      value: item.value,
+    })),
+    { keepValue: true, placeholder: "Barcha holatlar" }
+  );
+
+  if (!assetStatusSelect.value && state.assetStatuses[0]?.value) {
+    assetStatusSelect.value = state.assetStatuses[0].value;
+  }
+
+  if (!conditionStatusSelect.value && state.conditionStatuses[0]?.value) {
+    conditionStatusSelect.value = state.conditionStatuses[0].value;
+  }
 }
 
 function renderInventory(records, stats) {
@@ -589,7 +672,24 @@ function renderInventory(records, stats) {
     appendCell(row, "Ism", record.firstName);
     appendCell(row, "Familya", record.lastName);
     appendCell(row, "Bo'lim", record.department);
-    appendCell(row, "Texnika", record.deviceName);
+    appendStackCell(row, "Texnika", [
+      record.deviceName,
+      record.officeLocation || record.supplier || "",
+    ]);
+    appendStackCell(row, "Asset", [
+      record.assetTag || "Tag biriktirilmagan",
+      record.serialNumber || "Serial raqam yo'q",
+    ]);
+    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+    appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
+    appendStackCell(row, "Xarid / Kafolat", [
+      record.purchaseDate ? `Xarid: ${formatShortDate(record.purchaseDate)}` : "Xarid sanasi yo'q",
+      record.warrantyUntil ? `Kafolat: ${formatShortDate(record.warrantyUntil)}` : "Kafolat kiritilmagan",
+    ]);
+    appendStackCell(row, "Qo'shimcha", [
+      record.accessories || "Qo'shimcha texnika yo'q",
+      record.notes || "",
+    ]);
     appendCell(row, "Oldin kimda", record.previousHolder || "-");
     appendCell(row, "Hozir kimda", record.currentHolder);
     appendCell(row, "Yangilangan", formatDate(record.updatedAt));
@@ -623,7 +723,108 @@ function renderInventory(records, stats) {
   totalRecordsElement.textContent = stats.totalRecords || 0;
   totalDepartmentsElement.textContent = stats.totalDepartments || 0;
   activeDevicesElement.textContent = stats.activeDevices || 0;
-  tableSummary.textContent = `${stats.totalRecords || 0} ta inventar yozuvi ko'rsatildi.`;
+  tableSummary.textContent = `${stats.totalRecords || 0} ta yozuv. ${stats.inUseCount || 0} ishlatilmoqda, ${stats.repairCount || 0} ta'mirda, ${stats.warrantyExpiringCount || 0} kafolat muddatiga yaqin.`;
+}
+
+function renderDashboard(overview) {
+  const stats = overview?.stats || {};
+
+  dashboardInUseCountElement.textContent = stats.inUseCount || 0;
+  dashboardInStockCountElement.textContent = stats.inStockCount || 0;
+  dashboardRepairCountElement.textContent = stats.repairCount || 0;
+  dashboardWarrantyCountElement.textContent = stats.warrantyExpiringCount || 0;
+  dashboardAccessoryCountElement.textContent = stats.accessoryCount || 0;
+  dashboardPurchasedThisYearCountElement.textContent = stats.purchasedThisYearCount || 0;
+
+  renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel);
+  renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel);
+  renderBreakdownList(dashboardDepartmentList, overview?.byDepartment || [], (value) => value);
+
+  renderDashboardTable(recentPurchasesTableBody, overview?.recentPurchases || [], (record, row) => {
+    appendCell(row, "Texnika", record.deviceName);
+    appendCell(row, "Sotib olingan", formatShortDate(record.purchaseDate));
+    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+  });
+
+  renderDashboardTable(warrantyTableBody, overview?.upcomingWarranty || [], (record, row) => {
+    appendCell(row, "Texnika", record.deviceName);
+    appendCell(row, "Kafolat", formatShortDate(record.warrantyUntil));
+    appendCell(row, "Holder", record.currentHolder || "-");
+  });
+
+  renderDashboardTable(attentionTableBody, overview?.attentionItems || [], (record, row) => {
+    appendCell(row, "Texnika", record.deviceName);
+    appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
+    appendCell(row, "Joylashuv", record.officeLocation || "-");
+  });
+
+  renderDashboardTable(latestChangesTableBody, overview?.latestChanges || [], (record, row) => {
+    appendCell(row, "Texnika", record.deviceName);
+    appendTagCell(row, "Status", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
+    appendCell(row, "Yangilangan", formatDate(record.updatedAt));
+  });
+}
+
+function renderBreakdownList(container, items, labelFormatter) {
+  container.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "breakdown-list__empty";
+    empty.textContent = "Hozircha ma'lumot mavjud emas.";
+    container.appendChild(empty);
+    return;
+  }
+
+  const maxValue = Math.max(...items.map((item) => item.total || 0), 1);
+
+  items.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "breakdown-item";
+
+    const header = document.createElement("div");
+    header.className = "breakdown-item__header";
+
+    const label = document.createElement("span");
+    label.className = "breakdown-item__label";
+    label.textContent = labelFormatter(item.label || item.value || "-");
+
+    const value = document.createElement("strong");
+    value.className = "breakdown-item__value";
+    value.textContent = item.total || 0;
+
+    const track = document.createElement("div");
+    track.className = "breakdown-item__track";
+
+    const bar = document.createElement("span");
+    bar.className = "breakdown-item__bar";
+    bar.style.width = `${Math.max(8, Math.round(((item.total || 0) / maxValue) * 100))}%`;
+
+    header.append(label, value);
+    track.appendChild(bar);
+    row.append(header, track);
+    container.appendChild(row);
+  });
+}
+
+function renderDashboardTable(container, items, renderRow) {
+  container.innerHTML = "";
+
+  if (!items.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.textContent = "Hozircha ma'lumot mavjud emas.";
+    row.appendChild(cell);
+    container.appendChild(row);
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = document.createElement("tr");
+    renderRow(item, row);
+    container.appendChild(row);
+  });
 }
 
 function renderDepartments() {
@@ -709,7 +910,28 @@ function renderAuditLogs(logs) {
 function appendCell(row, label, value) {
   const cell = document.createElement("td");
   cell.dataset.label = label;
-  cell.textContent = value;
+  cell.textContent = value || value === 0 ? value : "-";
+  row.appendChild(cell);
+}
+
+function appendStackCell(row, label, lines) {
+  const cell = document.createElement("td");
+  cell.dataset.label = label;
+  const wrapper = document.createElement("div");
+  wrapper.className = "stacked-cell";
+
+  lines.filter(Boolean).forEach((line, index) => {
+    const element = document.createElement(index === 0 ? "strong" : "span");
+    element.className = index === 0 ? "stacked-cell__primary" : "stacked-cell__secondary";
+    element.textContent = line;
+    wrapper.appendChild(element);
+  });
+
+  if (!wrapper.childElementCount) {
+    wrapper.textContent = "-";
+  }
+
+  cell.appendChild(wrapper);
   row.appendChild(cell);
 }
 
@@ -769,8 +991,19 @@ function fillInventoryForm(record) {
   lastNameInput.value = record.lastName;
   departmentSelect.value = String(record.departmentId || "");
   deviceSelect.value = String(record.deviceId || "");
+  assetTagInput.value = record.assetTag || "";
+  serialNumberInput.value = record.serialNumber || "";
+  assetStatusSelect.value = record.assetStatus || state.assetStatuses[0]?.value || "";
+  conditionStatusSelect.value = record.conditionStatus || state.conditionStatuses[0]?.value || "";
+  purchaseDateInput.value = record.purchaseDate || "";
+  assignedAtInput.value = record.assignedAt || "";
+  warrantyUntilInput.value = record.warrantyUntil || "";
+  supplierInput.value = record.supplier || "";
+  officeLocationInput.value = record.officeLocation || "";
+  accessoriesInput.value = record.accessories || "";
   previousHolderInput.value = record.previousHolder === "-" ? "" : record.previousHolder;
   currentHolderInput.value = record.currentHolder;
+  notesInput.value = record.notes || "";
   submitButton.textContent = "Yangilash";
   cancelEditButton.classList.remove("hidden");
 }
@@ -810,6 +1043,8 @@ function fillUserForm(user) {
 function resetInventoryForm() {
   inventoryForm.reset();
   recordIdInput.value = "";
+  assetStatusSelect.value = state.assetStatuses[0]?.value || "";
+  conditionStatusSelect.value = state.conditionStatuses[0]?.value || "";
   submitButton.textContent = "Saqlash";
   cancelEditButton.classList.add("hidden");
 }
@@ -915,12 +1150,23 @@ function scheduleCatalogRender() {
 
 function getInventoryPayload() {
   return {
+    accessories: accessoriesInput.value.trim(),
+    assetStatus: assetStatusSelect.value,
+    assetTag: assetTagInput.value.trim(),
+    assignedAt: assignedAtInput.value,
+    conditionStatus: conditionStatusSelect.value,
     currentHolder: currentHolderInput.value.trim(),
     departmentId: departmentSelect.value,
     deviceId: deviceSelect.value,
     firstName: firstNameInput.value.trim(),
     lastName: lastNameInput.value.trim(),
+    notes: notesInput.value.trim(),
+    officeLocation: officeLocationInput.value.trim(),
     previousHolder: previousHolderInput.value.trim(),
+    purchaseDate: purchaseDateInput.value,
+    serialNumber: serialNumberInput.value.trim(),
+    supplier: supplierInput.value.trim(),
+    warrantyUntil: warrantyUntilInput.value,
   };
 }
 
@@ -1016,6 +1262,7 @@ function showApp() {
   authScreen.classList.add("hidden");
   appShell.classList.remove("hidden");
   clearAuthFeedback();
+  activateTab(state.activeTab);
 }
 
 function showAuth() {
@@ -1104,6 +1351,14 @@ function downloadInventory(pathname) {
     url.searchParams.set("deviceId", filterDeviceSelect.value);
   }
 
+  if (filterAssetStatusSelect.value) {
+    url.searchParams.set("assetStatus", filterAssetStatusSelect.value);
+  }
+
+  if (filterConditionStatusSelect.value) {
+    url.searchParams.set("conditionStatus", filterConditionStatusSelect.value);
+  }
+
   window.open(url.toString(), "_blank", "noopener");
 }
 
@@ -1119,6 +1374,59 @@ function formatDate(value) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function formatShortDate(value) {
+  if (!value) {
+    return "-";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+    const [year, month, day] = String(value).split("-");
+    return `${day}.${month}.${year}`;
+  }
+
+  return new Intl.DateTimeFormat("uz-UZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function getAssetStatusLabel(value) {
+  return state.assetStatuses.find((item) => item.value === value)?.label || value || "-";
+}
+
+function getConditionStatusLabel(value) {
+  return state.conditionStatuses.find((item) => item.value === value)?.label || value || "-";
+}
+
+function getAssetStatusClass(value) {
+  switch (value) {
+    case "repair":
+      return "tag--danger";
+    case "reserved":
+      return "tag--warning";
+    case "retired":
+      return "tag--muted";
+    case "in_stock":
+      return "tag--info";
+    default:
+      return "";
+  }
+}
+
+function getConditionStatusClass(value) {
+  switch (value) {
+    case "damaged":
+      return "tag--danger";
+    case "fair":
+      return "tag--warning";
+    case "new":
+      return "tag--info";
+    default:
+      return "";
+  }
 }
 
 function capitalize(value) {

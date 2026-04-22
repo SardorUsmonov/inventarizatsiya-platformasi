@@ -4,6 +4,10 @@ const { DatabaseSync } = require("node:sqlite");
 
 const { hashPassword } = require("./auth");
 const { defaultDepartments, defaultDevices } = require("./catalog-presets");
+const {
+  DEFAULT_ASSET_STATUS,
+  DEFAULT_CONDITION_STATUS,
+} = require("./inventory-options");
 
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
@@ -86,13 +90,24 @@ function createDatabase(config) {
             department_id,
             device_name,
             device_id,
+            asset_tag,
+            serial_number,
+            asset_status,
+            condition_status,
+            purchase_date,
+            assigned_at,
+            warranty_until,
+            supplier,
+            office_location,
+            accessories,
+            notes,
             previous_holder,
             current_holder,
             created_by,
             updated_by,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           payload.firstName,
@@ -101,6 +116,17 @@ function createDatabase(config) {
           department.id,
           device.name,
           device.id,
+          payload.assetTag,
+          payload.serialNumber,
+          payload.assetStatus,
+          payload.conditionStatus,
+          payload.purchaseDate,
+          payload.assignedAt,
+          payload.warrantyUntil,
+          payload.supplier,
+          payload.officeLocation,
+          payload.accessories,
+          payload.notes,
           payload.previousHolder,
           payload.currentHolder,
           userId,
@@ -274,6 +300,17 @@ function createDatabase(config) {
               department_id AS departmentId,
               device_name AS deviceName,
               device_id AS deviceId,
+              asset_tag AS assetTag,
+              serial_number AS serialNumber,
+              asset_status AS assetStatus,
+              condition_status AS conditionStatus,
+              purchase_date AS purchaseDate,
+              assigned_at AS assignedAt,
+              warranty_until AS warrantyUntil,
+              supplier,
+              office_location AS officeLocation,
+              accessories,
+              notes,
               previous_holder AS previousHolder,
               current_holder AS currentHolder,
               created_at AS createdAt,
@@ -290,12 +327,32 @@ function createDatabase(config) {
         .prepare(`
           SELECT
             COUNT(*) AS totalRecords,
-            COUNT(DISTINCT lower(trim(department))) AS totalDepartments,
-            COALESCE(SUM(CASE WHEN trim(current_holder) <> '' THEN 1 ELSE 0 END), 0) AS activeDevices
+            COUNT(DISTINCT CASE WHEN trim(department) <> '' THEN lower(trim(department)) END) AS totalDepartments,
+            COALESCE(SUM(CASE WHEN asset_status = 'in_use' THEN 1 ELSE 0 END), 0) AS activeDevices,
+            COALESCE(SUM(CASE WHEN asset_status = 'in_use' THEN 1 ELSE 0 END), 0) AS inUseCount,
+            COALESCE(SUM(CASE WHEN asset_status = 'in_stock' THEN 1 ELSE 0 END), 0) AS inStockCount,
+            COALESCE(SUM(CASE WHEN asset_status = 'repair' THEN 1 ELSE 0 END), 0) AS repairCount,
+            COALESCE(SUM(CASE WHEN asset_status = 'retired' THEN 1 ELSE 0 END), 0) AS retiredCount,
+            COALESCE(SUM(CASE WHEN accessories <> '' THEN 1 ELSE 0 END), 0) AS accessoryCount,
+            COALESCE(SUM(CASE WHEN purchase_date >= :yearStart THEN 1 ELSE 0 END), 0) AS purchasedThisYearCount,
+            COALESCE(SUM(CASE WHEN warranty_until <> '' AND warranty_until >= :today AND warranty_until <= :warrantyLimit THEN 1 ELSE 0 END), 0) AS warrantyExpiringCount,
+            COALESCE(SUM(CASE WHEN asset_status = 'repair' OR condition_status = 'damaged' THEN 1 ELSE 0 END), 0) AS attentionCount
           FROM inventory_records
           ${buildInventoryWhereClause()}
         `)
-        .get(buildInventoryParams(filters));
+        .get(buildInventoryStatsParams(filters));
+    },
+    getDashboardOverview() {
+      return {
+        attentionItems: this.listAttentionInventory(),
+        byCondition: this.listInventoryConditionBreakdown(),
+        byDepartment: this.listInventoryDepartmentBreakdown(),
+        byStatus: this.listInventoryStatusBreakdown(),
+        latestChanges: this.listLatestInventoryChanges(),
+        recentPurchases: this.listRecentInventoryPurchases(),
+        stats: this.getInventoryStats(),
+        upcomingWarranty: this.listUpcomingWarranty(),
+      };
     },
     getInventoryUsageByDepartmentId(departmentId) {
       return database
@@ -314,6 +371,80 @@ function createDatabase(config) {
           WHERE device_id = ?
         `)
         .get(deviceId).total;
+    },
+    listAttentionInventory(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          WHERE asset_status = 'repair'
+             OR condition_status = 'damaged'
+          ORDER BY updated_at DESC, id DESC
+          LIMIT ?
+        `)
+        .all(limit)
+        .map(mapInventoryRecord);
+    },
+    listInventoryConditionBreakdown(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            condition_status AS value,
+            COUNT(*) AS total
+          FROM inventory_records
+          GROUP BY condition_status
+          ORDER BY total DESC, condition_status ASC
+          LIMIT ?
+        `)
+        .all(limit);
+    },
+    listInventoryDepartmentBreakdown(limit = 8) {
+      return database
+        .prepare(`
+          SELECT
+            department AS label,
+            COUNT(*) AS total
+          FROM inventory_records
+          GROUP BY department
+          ORDER BY total DESC, department COLLATE NOCASE ASC
+          LIMIT ?
+        `)
+        .all(limit);
+    },
+    listInventoryStatusBreakdown(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            asset_status AS value,
+            COUNT(*) AS total
+          FROM inventory_records
+          GROUP BY asset_status
+          ORDER BY total DESC, asset_status ASC
+          LIMIT ?
+        `)
+        .all(limit);
     },
     getSessionByTokenHash(tokenHash) {
       return database
@@ -400,13 +531,24 @@ function createDatabase(config) {
                 department_id,
                 device_name,
                 device_id,
+                asset_tag,
+                serial_number,
+                asset_status,
+                condition_status,
+                purchase_date,
+                assigned_at,
+                warranty_until,
+                supplier,
+                office_location,
+                accessories,
+                notes,
                 previous_holder,
                 current_holder,
                 created_by,
                 updated_by,
                 created_at,
                 updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               row.firstName,
@@ -415,6 +557,17 @@ function createDatabase(config) {
               departmentRef.record.id,
               deviceRef.record.name,
               deviceRef.record.id,
+              row.assetTag,
+              row.serialNumber,
+              row.assetStatus || DEFAULT_ASSET_STATUS,
+              row.conditionStatus || DEFAULT_CONDITION_STATUS,
+              row.purchaseDate,
+              row.assignedAt,
+              row.warrantyUntil,
+              row.supplier,
+              row.officeLocation,
+              row.accessories,
+              row.notes,
               row.previousHolder || "-",
               row.currentHolder,
               userId,
@@ -509,6 +662,17 @@ function createDatabase(config) {
             department_id AS departmentId,
             device_name AS deviceName,
             device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            office_location AS officeLocation,
+            accessories,
+            notes,
             previous_holder AS previousHolder,
             current_holder AS currentHolder,
             created_at AS createdAt,
@@ -518,6 +682,108 @@ function createDatabase(config) {
           ORDER BY updated_at DESC, id DESC
         `)
         .all(buildInventoryParams(filters))
+        .map(mapInventoryRecord);
+    },
+    listLatestInventoryChanges(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          ORDER BY updated_at DESC, id DESC
+          LIMIT ?
+        `)
+        .all(limit)
+        .map(mapInventoryRecord);
+    },
+    listRecentInventoryPurchases(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          WHERE purchase_date <> ''
+          ORDER BY purchase_date DESC, updated_at DESC
+          LIMIT ?
+        `)
+        .all(limit)
+        .map(mapInventoryRecord);
+    },
+    listUpcomingWarranty(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          WHERE warranty_until <> ''
+            AND warranty_until >= ?
+          ORDER BY warranty_until ASC, updated_at DESC
+          LIMIT ?
+        `)
+        .all(getTodayIsoDate(), limit)
         .map(mapInventoryRecord);
     },
     listUsers() {
@@ -654,6 +920,17 @@ function createDatabase(config) {
             department_id = ?,
             device_name = ?,
             device_id = ?,
+            asset_tag = ?,
+            serial_number = ?,
+            asset_status = ?,
+            condition_status = ?,
+            purchase_date = ?,
+            assigned_at = ?,
+            warranty_until = ?,
+            supplier = ?,
+            office_location = ?,
+            accessories = ?,
+            notes = ?,
             previous_holder = ?,
             current_holder = ?,
             updated_by = ?,
@@ -667,6 +944,17 @@ function createDatabase(config) {
           department.id,
           device.name,
           device.id,
+          payload.assetTag,
+          payload.serialNumber,
+          payload.assetStatus,
+          payload.conditionStatus,
+          payload.purchaseDate,
+          payload.assignedAt,
+          payload.warrantyUntil,
+          payload.supplier,
+          payload.officeLocation,
+          payload.accessories,
+          payload.notes,
           payload.previousHolder,
           payload.currentHolder,
           userId,
@@ -764,13 +1052,28 @@ function initializeDatabase(database) {
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       department TEXT NOT NULL,
+      department_id INTEGER,
       device_name TEXT NOT NULL,
+      device_id INTEGER,
+      asset_tag TEXT NOT NULL DEFAULT '',
+      serial_number TEXT NOT NULL DEFAULT '',
+      asset_status TEXT NOT NULL DEFAULT 'in_use',
+      condition_status TEXT NOT NULL DEFAULT 'good',
+      purchase_date TEXT NOT NULL DEFAULT '',
+      assigned_at TEXT NOT NULL DEFAULT '',
+      warranty_until TEXT NOT NULL DEFAULT '',
+      supplier TEXT NOT NULL DEFAULT '',
+      office_location TEXT NOT NULL DEFAULT '',
+      accessories TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
       previous_holder TEXT NOT NULL DEFAULT '-',
       current_holder TEXT NOT NULL,
       created_by INTEGER,
+      updated_by INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -793,7 +1096,34 @@ function initializeDatabase(database) {
   ensureColumn(database, "users", "is_active", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(database, "inventory_records", "department_id", "INTEGER");
   ensureColumn(database, "inventory_records", "device_id", "INTEGER");
+  ensureColumn(database, "inventory_records", "asset_tag", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "serial_number", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "asset_status", `TEXT NOT NULL DEFAULT '${DEFAULT_ASSET_STATUS}'`);
+  ensureColumn(database, "inventory_records", "condition_status", `TEXT NOT NULL DEFAULT '${DEFAULT_CONDITION_STATUS}'`);
+  ensureColumn(database, "inventory_records", "purchase_date", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "assigned_at", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "warranty_until", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "supplier", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "office_location", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "accessories", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "notes", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "updated_by", "INTEGER");
+
+  database.exec(`
+    UPDATE inventory_records
+    SET
+      asset_tag = COALESCE(asset_tag, ''),
+      serial_number = COALESCE(serial_number, ''),
+      asset_status = COALESCE(NULLIF(asset_status, ''), '${DEFAULT_ASSET_STATUS}'),
+      condition_status = COALESCE(NULLIF(condition_status, ''), '${DEFAULT_CONDITION_STATUS}'),
+      purchase_date = COALESCE(purchase_date, ''),
+      assigned_at = COALESCE(assigned_at, ''),
+      warranty_until = COALESCE(warranty_until, ''),
+      supplier = COALESCE(supplier, ''),
+      office_location = COALESCE(office_location, ''),
+      accessories = COALESCE(accessories, ''),
+      notes = COALESCE(notes, '')
+  `);
 
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
@@ -803,6 +1133,10 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_devices_name ON devices(name);
     CREATE INDEX IF NOT EXISTS idx_inventory_department_id ON inventory_records(department_id);
     CREATE INDEX IF NOT EXISTS idx_inventory_device_id ON inventory_records(device_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_asset_status ON inventory_records(asset_status);
+    CREATE INDEX IF NOT EXISTS idx_inventory_condition_status ON inventory_records(condition_status);
+    CREATE INDEX IF NOT EXISTS idx_inventory_purchase_date ON inventory_records(purchase_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_inventory_warranty_until ON inventory_records(warranty_until ASC);
     CREATE INDEX IF NOT EXISTS idx_inventory_updated_at ON inventory_records(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entity_type ON audit_logs(entity_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action, created_at DESC);
@@ -1091,11 +1425,23 @@ function buildInventoryWhereClause() {
       lower(last_name) LIKE :searchPattern ESCAPE '\\' OR
       lower(department) LIKE :searchPattern ESCAPE '\\' OR
       lower(device_name) LIKE :searchPattern ESCAPE '\\' OR
+      lower(asset_tag) LIKE :searchPattern ESCAPE '\\' OR
+      lower(serial_number) LIKE :searchPattern ESCAPE '\\' OR
+      lower(asset_status) LIKE :searchPattern ESCAPE '\\' OR
+      lower(condition_status) LIKE :searchPattern ESCAPE '\\' OR
+      lower(purchase_date) LIKE :searchPattern ESCAPE '\\' OR
+      lower(warranty_until) LIKE :searchPattern ESCAPE '\\' OR
+      lower(supplier) LIKE :searchPattern ESCAPE '\\' OR
+      lower(office_location) LIKE :searchPattern ESCAPE '\\' OR
+      lower(accessories) LIKE :searchPattern ESCAPE '\\' OR
+      lower(notes) LIKE :searchPattern ESCAPE '\\' OR
       lower(previous_holder) LIKE :searchPattern ESCAPE '\\' OR
       lower(current_holder) LIKE :searchPattern ESCAPE '\\'
     )
     AND (:departmentId = 0 OR department_id = :departmentId)
     AND (:deviceId = 0 OR device_id = :deviceId)
+    AND (:assetStatus = '' OR asset_status = :assetStatus)
+    AND (:conditionStatus = '' OR condition_status = :conditionStatus)
   `;
 }
 
@@ -1103,10 +1449,21 @@ function buildInventoryParams(filters = {}) {
   const search = normalizeSearch(filters.search);
 
   return {
+    assetStatus: normalizeSearch(filters.assetStatus),
+    conditionStatus: normalizeSearch(filters.conditionStatus),
     departmentId: Number(filters.departmentId) || 0,
     deviceId: Number(filters.deviceId) || 0,
     search,
     searchPattern: search ? `%${escapeLike(search)}%` : "%",
+  };
+}
+
+function buildInventoryStatsParams(filters = {}) {
+  return {
+    ...buildInventoryParams(filters),
+    today: getTodayIsoDate(),
+    warrantyLimit: getFutureIsoDate(30),
+    yearStart: getYearStartIsoDate(),
   };
 }
 
@@ -1160,7 +1517,20 @@ function mapInventoryRecord(row) {
     return null;
   }
 
-  return row;
+  return {
+    ...row,
+    accessories: row.accessories || "",
+    assetStatus: row.assetStatus || DEFAULT_ASSET_STATUS,
+    assetTag: row.assetTag || "",
+    assignedAt: row.assignedAt || "",
+    conditionStatus: row.conditionStatus || DEFAULT_CONDITION_STATUS,
+    notes: row.notes || "",
+    officeLocation: row.officeLocation || "",
+    purchaseDate: row.purchaseDate || "",
+    serialNumber: row.serialNumber || "",
+    supplier: row.supplier || "",
+    warrantyUntil: row.warrantyUntil || "",
+  };
 }
 
 function mapUser(row) {
@@ -1213,6 +1583,20 @@ function escapeLike(value) {
 
 function getNow() {
   return new Date().toISOString();
+}
+
+function getTodayIsoDate() {
+  return getNow().slice(0, 10);
+}
+
+function getFutureIsoDate(days) {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + days);
+  return futureDate.toISOString().slice(0, 10);
+}
+
+function getYearStartIsoDate() {
+  return `${new Date().getFullYear()}-01-01`;
 }
 
 function unique(items) {

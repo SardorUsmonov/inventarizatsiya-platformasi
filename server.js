@@ -19,6 +19,16 @@ const {
   parseInventoryWorkbook,
 } = require("./src/excel");
 const {
+  getAssetStatusLabel,
+  getConditionStatusLabel,
+  isKnownAssetStatus,
+  isKnownConditionStatus,
+  listAssetStatuses,
+  listConditionStatuses,
+  normalizeAssetStatus,
+  normalizeConditionStatus,
+} = require("./src/inventory-options");
+const {
   getPermissions,
   hasPermission,
   isKnownRole,
@@ -185,6 +195,11 @@ app.get("/api/dashboard", (request, response) => {
     auditLogs: permissions.viewAudit ? database.listAuditLogs({ limit: 50 }) : [],
     departments: database.listDepartments(),
     devices: database.listDevices(),
+    inventoryMeta: {
+      assetStatuses: listAssetStatuses(),
+      conditionStatuses: listConditionStatuses(),
+    },
+    overview: permissions.viewInventory ? database.getDashboardOverview() : null,
     roles: listRoles(),
     user: sanitizeUser(request.user),
     users: permissions.manageUsers ? database.listUsers() : [],
@@ -229,6 +244,9 @@ app.post("/api/inventory", requirePermission("manageInventory"), (request, respo
     actorUserId: request.user.id,
     actorUsername: request.user.username,
     details: {
+      assetStatus: record.assetStatus,
+      assetTag: record.assetTag,
+      conditionStatus: record.conditionStatus,
       currentHolder: record.currentHolder,
       department: record.department,
       deviceName: record.deviceName,
@@ -236,7 +254,7 @@ app.post("/api/inventory", requirePermission("manageInventory"), (request, respo
     entityId: record.id,
     entityType: "inventory",
     ipAddress: request.ip,
-    summary: `${record.deviceName} ${record.currentHolder} ga biriktirildi.`,
+    summary: `${record.deviceName} ${record.currentHolder} ga biriktirildi (${getAssetStatusLabel(record.assetStatus)}).`,
   });
 
   response.status(201).json({
@@ -281,11 +299,17 @@ app.put("/api/inventory/:id", requirePermission("manageInventory"), (request, re
     actorUsername: request.user.username,
     details: {
       after: {
+        assetStatus: record.assetStatus,
+        assetTag: record.assetTag,
+        conditionStatus: record.conditionStatus,
         currentHolder: record.currentHolder,
         department: record.department,
         deviceName: record.deviceName,
       },
       before: {
+        assetStatus: existing.assetStatus,
+        assetTag: existing.assetTag,
+        conditionStatus: existing.conditionStatus,
         currentHolder: existing.currentHolder,
         department: existing.department,
         deviceName: existing.deviceName,
@@ -294,7 +318,7 @@ app.put("/api/inventory/:id", requirePermission("manageInventory"), (request, re
     entityId: record.id,
     entityType: "inventory",
     ipAddress: request.ip,
-    summary: `${record.deviceName} bo'yicha yozuv yangilandi.`,
+    summary: `${record.deviceName} bo'yicha yozuv yangilandi (${getAssetStatusLabel(record.assetStatus)}).`,
   });
 
   response.json({
@@ -328,6 +352,8 @@ app.delete("/api/inventory/:id", requirePermission("manageInventory"), (request,
     actorUserId: request.user.id,
     actorUsername: request.user.username,
     details: {
+      assetStatus: deletedRecord.assetStatus,
+      assetTag: deletedRecord.assetTag,
       currentHolder: deletedRecord.currentHolder,
       department: deletedRecord.department,
       deviceName: deletedRecord.deviceName,
@@ -400,18 +426,22 @@ app.post(
       return;
     }
 
-    const validationError = rows.find((row) => {
-      return !row.firstName || !row.lastName || !row.department || !row.deviceName || !row.currentHolder;
-    });
+    const normalizedRows = [];
 
-    if (validationError) {
-      response.status(400).json({
-        message: `${validationError.rowNumber}-qatorda majburiy maydonlar to'liq emas.`,
-      });
-      return;
+    for (const row of rows) {
+      const validation = validateImportedInventoryRow(row);
+
+      if (!validation.ok) {
+        response.status(400).json({
+          message: `${row.rowNumber}-qatorda ${validation.message}`,
+        });
+        return;
+      }
+
+      normalizedRows.push(validation.data);
     }
 
-    const result = database.importInventoryRows(rows, request.user.id);
+    const result = database.importInventoryRows(normalizedRows, request.user.id);
 
     database.logAudit({
       action: "inventory.import",
@@ -982,6 +1012,17 @@ function validateInventoryPayload(body) {
   const previousHolder = normalizeText(body?.previousHolder, 160) || "-";
   const departmentId = parsePositiveInteger(body?.departmentId);
   const deviceId = parsePositiveInteger(body?.deviceId);
+  const assetTag = normalizeText(body?.assetTag, 64);
+  const serialNumber = normalizeText(body?.serialNumber, 120);
+  const assetStatus = normalizeAssetStatus(body?.assetStatus);
+  const conditionStatus = normalizeConditionStatus(body?.conditionStatus);
+  const purchaseDate = parseDateInput(body?.purchaseDate);
+  const assignedAt = parseDateInput(body?.assignedAt);
+  const warrantyUntil = parseDateInput(body?.warrantyUntil);
+  const supplier = normalizeText(body?.supplier, 120);
+  const officeLocation = normalizeText(body?.officeLocation, 120);
+  const accessories = normalizeText(body?.accessories, 240);
+  const notes = normalizeText(body?.notes, 500);
 
   if (!firstName || !lastName || !currentHolder || !departmentId || !deviceId) {
     return {
@@ -990,14 +1031,145 @@ function validateInventoryPayload(body) {
     };
   }
 
+  if (!assetStatus || !isKnownAssetStatus(assetStatus)) {
+    return {
+      message: "Texnika statusi noto'g'ri tanlangan.",
+      ok: false,
+    };
+  }
+
+  if (!conditionStatus || !isKnownConditionStatus(conditionStatus)) {
+    return {
+      message: "Texnika holati noto'g'ri tanlangan.",
+      ok: false,
+    };
+  }
+
+  if (body?.purchaseDate && !purchaseDate) {
+    return {
+      message: "Sotib olingan sana formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (body?.assignedAt && !assignedAt) {
+    return {
+      message: "Biriktirilgan sana formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (body?.warrantyUntil && !warrantyUntil) {
+    return {
+      message: "Kafolat muddati formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
   return {
     data: {
+      accessories,
+      assetStatus,
+      assetTag,
+      assignedAt,
+      conditionStatus,
       currentHolder,
       departmentId,
       deviceId,
       firstName,
       lastName,
+      notes,
+      officeLocation,
       previousHolder,
+      purchaseDate,
+      serialNumber,
+      supplier,
+      warrantyUntil,
+    },
+    ok: true,
+  };
+}
+
+function validateImportedInventoryRow(row) {
+  const firstName = normalizeText(row?.firstName, 80);
+  const lastName = normalizeText(row?.lastName, 80);
+  const department = normalizeText(row?.department, 120);
+  const deviceName = normalizeText(row?.deviceName, 160);
+  const currentHolder = normalizeText(row?.currentHolder, 160);
+  const previousHolder = normalizeText(row?.previousHolder, 160) || "-";
+  const assetTag = normalizeText(row?.assetTag, 64);
+  const serialNumber = normalizeText(row?.serialNumber, 120);
+  const assetStatus = normalizeAssetStatus(row?.assetStatus);
+  const conditionStatus = normalizeConditionStatus(row?.conditionStatus);
+  const purchaseDate = parseDateInput(row?.purchaseDate);
+  const assignedAt = parseDateInput(row?.assignedAt);
+  const warrantyUntil = parseDateInput(row?.warrantyUntil);
+  const supplier = normalizeText(row?.supplier, 120);
+  const officeLocation = normalizeText(row?.officeLocation, 120);
+  const accessories = normalizeText(row?.accessories, 240);
+  const notes = normalizeText(row?.notes, 500);
+
+  if (!firstName || !lastName || !department || !deviceName || !currentHolder) {
+    return {
+      message: "majburiy maydonlar to'liq emas.",
+      ok: false,
+    };
+  }
+
+  if (!assetStatus || !isKnownAssetStatus(assetStatus)) {
+    return {
+      message: "status qiymati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (!conditionStatus || !isKnownConditionStatus(conditionStatus)) {
+    return {
+      message: "holat qiymati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (row?.purchaseDate && !purchaseDate) {
+    return {
+      message: "sotib olingan sana formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (row?.assignedAt && !assignedAt) {
+    return {
+      message: "biriktirilgan sana formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  if (row?.warrantyUntil && !warrantyUntil) {
+    return {
+      message: "kafolat muddati formati noto'g'ri.",
+      ok: false,
+    };
+  }
+
+  return {
+    data: {
+      accessories,
+      assetStatus,
+      assetTag,
+      assignedAt,
+      conditionStatus,
+      currentHolder,
+      department,
+      deviceName,
+      firstName,
+      lastName,
+      notes,
+      officeLocation,
+      previousHolder,
+      purchaseDate,
+      serialNumber,
+      supplier,
+      warrantyUntil,
     },
     ok: true,
   };
@@ -1102,6 +1274,8 @@ function validateUserPayload(body, options) {
 
 function getInventoryFilters(query) {
   return {
+    assetStatus: normalizeText(query.assetStatus, 40),
+    conditionStatus: normalizeText(query.conditionStatus, 40),
     departmentId: parsePositiveInteger(query.departmentId),
     deviceId: parsePositiveInteger(query.deviceId),
     search: normalizeText(query.search, 120),
@@ -1139,12 +1313,41 @@ function parseBoolean(value, defaultValue) {
   return defaultValue;
 }
 
+function parseDateInput(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return "";
+  }
+
+  return normalized;
+}
+
 function createCsv(records) {
   const headers = [
     "Ism",
     "Familya",
     "Bo'lim",
     "Texnika nomi",
+    "Asset tag",
+    "Serial raqam",
+    "Status",
+    "Holati",
+    "Sotib olingan sana",
+    "Biriktirilgan sana",
+    "Kafolat muddati",
+    "Yetkazib beruvchi",
+    "Joylashuv",
+    "Qo'shimcha texnikalar",
+    "Izoh",
     "Oldin kimda",
     "Hozir kimda",
     "Yaratilgan sana",
@@ -1156,6 +1359,17 @@ function createCsv(records) {
     record.lastName,
     record.department,
     record.deviceName,
+    record.assetTag,
+    record.serialNumber,
+    getAssetStatusLabel(record.assetStatus),
+    getConditionStatusLabel(record.conditionStatus),
+    record.purchaseDate,
+    record.assignedAt,
+    record.warrantyUntil,
+    record.supplier,
+    record.officeLocation,
+    record.accessories,
+    record.notes,
     record.previousHolder,
     record.currentHolder,
     formatDate(record.createdAt),

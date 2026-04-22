@@ -112,7 +112,11 @@
         </div>
 
         <nav class="tabs" id="tabs" aria-label="Asosiy bo'limlar">
-          <button class="tab-button is-active" data-tab-target="inventory" type="button">
+          <button class="tab-button is-active" data-tab-target="dashboard" type="button">
+            <span class="tab-button__icon">DB</span>
+            <span class="tab-button__text">Dashboard</span>
+          </button>
+          <button class="tab-button" data-tab-target="inventory" type="button">
             <span class="tab-button__icon">IN</span>
             <span class="tab-button__text">Inventar</span>
           </button>
@@ -198,14 +202,190 @@
 
         <div class="status-banner hidden" id="statusBanner" role="status" aria-live="polite"></div>
 
-        <section class="app-tab" id="tabInventory">
+        <section class="app-tab" id="tabDashboard">
+          <div class="dashboard-grid">
+            <section class="panel dashboard-panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Executive overview</p>
+                  <h2>Asset dashboard</h2>
+                  <p class="panel__subtext">Texnikalar holati, xarid sanasi, kafolat va risk nuqtalari bo'yicha umumiy ko'rinish.</p>
+                </div>
+              </div>
+
+              <div class="dashboard-cards">
+                <article class="dashboard-card dashboard-card--primary">
+                  <span class="dashboard-card__label">Ishlatilmoqda</span>
+                  <strong class="dashboard-card__value" id="dashboardInUseCount">0</strong>
+                  <span class="dashboard-card__hint">Xodimlarga biriktirilgan aktivlar</span>
+                </article>
+                <article class="dashboard-card">
+                  <span class="dashboard-card__label">Zaxirada</span>
+                  <strong class="dashboard-card__value" id="dashboardInStockCount">0</strong>
+                  <span class="dashboard-card__hint">Taqsimlashga tayyor texnikalar</span>
+                </article>
+                <article class="dashboard-card">
+                  <span class="dashboard-card__label">Ta'mirda</span>
+                  <strong class="dashboard-card__value" id="dashboardRepairCount">0</strong>
+                  <span class="dashboard-card__hint">Servisga e'tibor talab qiladiganlari</span>
+                </article>
+                <article class="dashboard-card">
+                  <span class="dashboard-card__label">Kafolat yaqin</span>
+                  <strong class="dashboard-card__value" id="dashboardWarrantyCount">0</strong>
+                  <span class="dashboard-card__hint">30 kun ichida tugashi mumkin</span>
+                </article>
+                <article class="dashboard-card">
+                  <span class="dashboard-card__label">Qo'shimcha texnikali</span>
+                  <strong class="dashboard-card__value" id="dashboardAccessoryCount">0</strong>
+                  <span class="dashboard-card__hint">Dock, sichqoncha, sumka va boshqalar</span>
+                </article>
+                <article class="dashboard-card">
+                  <span class="dashboard-card__label">Joriy yil xaridlari</span>
+                  <strong class="dashboard-card__value" id="dashboardPurchasedThisYearCount">0</strong>
+                  <span class="dashboard-card__hint">Yil boshidan beri qo'shilgan aktivlar</span>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Breakdown</p>
+                  <h2>Status va holat</h2>
+                </div>
+              </div>
+
+              <div class="dashboard-split">
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Statuslar kesimi</h3>
+                  </div>
+                  <div class="breakdown-list" id="dashboardStatusList"></div>
+                </section>
+
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Holat kesimi</h3>
+                  </div>
+                  <div class="breakdown-list" id="dashboardConditionList"></div>
+                </section>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Department load</p>
+                  <h2>Bo'limlar bo'yicha taqsimot</h2>
+                </div>
+              </div>
+              <div class="breakdown-list" id="dashboardDepartmentList"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Operational detail</p>
+                  <h2>So'nggi xaridlar va kafolat</h2>
+                </div>
+              </div>
+
+              <div class="dashboard-split">
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>So'nggi xaridlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Texnika</th>
+                          <th>Sotib olingan</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody id="recentPurchasesTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Kafolat yaqinlashayotganlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Texnika</th>
+                          <th>Kafolat</th>
+                          <th>Holder</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warrantyTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Attention</p>
+                  <h2>Risk va oxirgi o'zgarishlar</h2>
+                </div>
+              </div>
+
+              <div class="dashboard-split">
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>E'tibor talab qiladigan aktivlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Texnika</th>
+                          <th>Holat</th>
+                          <th>Joylashuv</th>
+                        </tr>
+                      </thead>
+                      <tbody id="attentionTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>So'nggi yangilanishlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Texnika</th>
+                          <th>Status</th>
+                          <th>Yangilangan</th>
+                        </tr>
+                      </thead>
+                      <tbody id="latestChangesTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-tab hidden" id="tabInventory">
           <main class="workspace">
             <section class="panel panel--form">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Inventar forma</p>
                   <h2>Yangi yozuv</h2>
-                  <p class="panel__subtext">Xodim, bo'lim va texnika bog'lanishini bir necha maydon orqali tez kiriting.</p>
+                  <p class="panel__subtext">Xodim, asset holati, sotib olingan sana va qo'shimcha texnikalar bilan to'liq aktiv kartasini yarating.</p>
                 </div>
                 <button class="ghost-button hidden" id="cancelEditButton" type="button">Bekor qilish</button>
               </div>
@@ -238,6 +418,56 @@
                 </label>
 
                 <label class="field">
+                  <span>Asset tag</span>
+                  <input id="assetTag" type="text" placeholder="Masalan: NB-024">
+                </label>
+
+                <label class="field">
+                  <span>Serial raqam</span>
+                  <input id="serialNumber" type="text" placeholder="Masalan: SN-5520-44A1">
+                </label>
+
+                <label class="field">
+                  <span>Status</span>
+                  <select id="assetStatus"></select>
+                </label>
+
+                <label class="field">
+                  <span>Sostoyanasi</span>
+                  <select id="conditionStatus"></select>
+                </label>
+
+                <label class="field">
+                  <span>Sotib olingan sana</span>
+                  <input id="purchaseDate" type="date">
+                </label>
+
+                <label class="field">
+                  <span>Biriktirilgan sana</span>
+                  <input id="assignedAt" type="date">
+                </label>
+
+                <label class="field">
+                  <span>Kafolat muddati</span>
+                  <input id="warrantyUntil" type="date">
+                </label>
+
+                <label class="field">
+                  <span>Yetkazib beruvchi</span>
+                  <input id="supplier" type="text" placeholder="Masalan: Dell Uzbekistan">
+                </label>
+
+                <label class="field">
+                  <span>Joylashuv</span>
+                  <input id="officeLocation" type="text" placeholder="Masalan: Toshkent HQ, 3-qavat">
+                </label>
+
+                <label class="field field--full">
+                  <span>Qo'shimcha mayda texnikalar</span>
+                  <input id="accessories" type="text" placeholder="Masalan: Dock, sichqoncha, ryukzak, quvvatlagich">
+                </label>
+
+                <label class="field">
                   <span>Oldin kimda bo'lgan</span>
                   <input id="previousHolder" type="text" placeholder="Masalan: Murod Usmonov">
                 </label>
@@ -245,6 +475,11 @@
                 <label class="field">
                   <span>Hozir kimda</span>
                   <input id="currentHolder" type="text" placeholder="Masalan: Ali Karimov" required>
+                </label>
+
+                <label class="field field--full">
+                  <span>Izoh</span>
+                  <textarea id="notes" rows="4" placeholder="Texnikaning holati, nosozlik tarixi yoki qo'shimcha ichki eslatmalar"></textarea>
                 </label>
 
                 <div class="form-actions">
@@ -352,6 +587,8 @@
                   </label>
                   <select class="toolbar-select" id="filterDepartmentId"></select>
                   <select class="toolbar-select" id="filterDeviceId"></select>
+                  <select class="toolbar-select" id="filterAssetStatus"></select>
+                  <select class="toolbar-select" id="filterConditionStatus"></select>
                   <button class="secondary-button" id="refreshButton" type="button">Yangilash</button>
                   <button class="secondary-button hidden" id="downloadTemplateButton" type="button">Template</button>
                   <button class="secondary-button hidden" id="importButton" type="button">Excel import</button>
@@ -369,6 +606,11 @@
                       <th>Familya</th>
                       <th>Bo'lim</th>
                       <th>Texnika</th>
+                      <th>Asset</th>
+                      <th>Status</th>
+                      <th>Holat</th>
+                      <th>Xarid / Kafolat</th>
+                      <th>Qo'shimcha</th>
                       <th>Oldin kimda</th>
                       <th>Hozir kimda</th>
                       <th>Yangilangan</th>
