@@ -20,9 +20,13 @@ async function createInventoryWorkbook(records) {
     { header: "Status", key: "assetStatus", width: 18 },
     { header: "Holati", key: "conditionStatus", width: 18 },
     { header: "Sotib olingan sana", key: "purchaseDate", width: 18 },
+    { header: "Sotib olish narxi", key: "purchasePrice", width: 16 },
     { header: "Biriktirilgan sana", key: "assignedAt", width: 18 },
     { header: "Kafolat muddati", key: "warrantyUntil", width: 18 },
     { header: "Yetkazib beruvchi", key: "supplier", width: 22 },
+    { header: "Filial", key: "branch", width: 20 },
+    { header: "Xona", key: "room", width: 14 },
+    { header: "Stol", key: "desk", width: 14 },
     { header: "Joylashuv", key: "officeLocation", width: 22 },
     { header: "Qo'shimcha texnikalar", key: "accessories", width: 30 },
     { header: "Izoh", key: "notes", width: 30 },
@@ -47,9 +51,13 @@ async function createInventoryWorkbook(records) {
       assetStatus: getAssetStatusLabel(record.assetStatus),
       conditionStatus: getConditionStatusLabel(record.conditionStatus),
       purchaseDate: record.purchaseDate,
+      purchasePrice: record.purchasePrice,
       assignedAt: record.assignedAt,
       warrantyUntil: record.warrantyUntil,
       supplier: record.supplier,
+      branch: record.branch,
+      room: record.room,
+      desk: record.desk,
       officeLocation: record.officeLocation,
       accessories: record.accessories,
       notes: record.notes,
@@ -75,9 +83,13 @@ async function createInventoryTemplateWorkbook(payload) {
     { header: "Status", key: "assetStatus", width: 18 },
     { header: "Holati", key: "conditionStatus", width: 18 },
     { header: "Sotib olingan sana", key: "purchaseDate", width: 18 },
+    { header: "Sotib olish narxi", key: "purchasePrice", width: 16 },
     { header: "Biriktirilgan sana", key: "assignedAt", width: 18 },
     { header: "Kafolat muddati", key: "warrantyUntil", width: 18 },
     { header: "Yetkazib beruvchi", key: "supplier", width: 22 },
+    { header: "Filial", key: "branch", width: 20 },
+    { header: "Xona", key: "room", width: 14 },
+    { header: "Stol", key: "desk", width: 14 },
     { header: "Joylashuv", key: "officeLocation", width: 22 },
     { header: "Qo'shimcha texnikalar", key: "accessories", width: 30 },
     { header: "Izoh", key: "notes", width: 30 },
@@ -97,9 +109,13 @@ async function createInventoryTemplateWorkbook(payload) {
     assetStatus: getAssetStatusLabel("in_use"),
     conditionStatus: getConditionStatusLabel("excellent"),
     purchaseDate: "2026-01-12",
+    purchasePrice: 1450,
     assignedAt: "2026-01-15",
     warrantyUntil: "2028-01-12",
     supplier: "Dell Uzbekistan",
+    branch: "Toshkent HQ",
+    room: "304",
+    desk: "D-12",
     officeLocation: "Toshkent HQ, 3-qavat",
     accessories: "Dock, sichqoncha, sumka",
     notes: "Frontend developer uchun tayinlangan",
@@ -187,8 +203,10 @@ async function parseInventoryWorkbook(buffer) {
         assetStatus: "",
         assetTag: "",
         assignedAt: "",
+        branch: "",
         conditionStatus: "",
         currentHolder: "",
+        desk: "",
         department: "",
         deviceName: "",
         firstName: "",
@@ -197,6 +215,8 @@ async function parseInventoryWorkbook(buffer) {
         officeLocation: "",
         previousHolder: "-",
         purchaseDate: "",
+        purchasePrice: "",
+        room: "",
         rowNumber: row.number,
         serialNumber: "",
         supplier: "",
@@ -230,9 +250,13 @@ async function parseInventoryWorkbook(buffer) {
         row.assetStatus ||
         row.conditionStatus ||
         row.purchaseDate ||
+        row.purchasePrice ||
         row.assignedAt ||
         row.warrantyUntil ||
         row.supplier ||
+        row.branch ||
+        row.room ||
+        row.desk ||
         row.officeLocation ||
         row.accessories ||
         row.notes ||
@@ -268,7 +292,11 @@ const HEADER_TO_FIELD = {
   "oldin kimda": "previousHolder",
   "texnika nomi": "deviceName",
   "biriktirilgan sana": "assignedAt",
+  "filial": "branch",
   "yetkazib beruvchi": "supplier",
+  "xona": "room",
+  "stol": "desk",
+  "sotib olish narxi": "purchasePrice",
 };
 
 function normalizeHeader(value) {

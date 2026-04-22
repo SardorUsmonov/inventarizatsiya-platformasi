@@ -11,6 +11,8 @@ const {
 
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
+  fs.mkdirSync(config.attachmentsDir, { recursive: true });
+  fs.mkdirSync(config.backupsDir, { recursive: true });
 
   const database = new DatabaseSync(config.databasePath);
   initializeDatabase(database);
@@ -95,9 +97,13 @@ function createDatabase(config) {
             asset_status,
             condition_status,
             purchase_date,
+            purchase_price,
             assigned_at,
             warranty_until,
             supplier,
+            branch,
+            room,
+            desk,
             office_location,
             accessories,
             notes,
@@ -107,7 +113,7 @@ function createDatabase(config) {
             updated_by,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           payload.firstName,
@@ -121,9 +127,13 @@ function createDatabase(config) {
           payload.assetStatus,
           payload.conditionStatus,
           payload.purchaseDate,
+          payload.purchasePrice,
           payload.assignedAt,
           payload.warrantyUntil,
           payload.supplier,
+          payload.branch,
+          payload.room,
+          payload.desk,
           payload.officeLocation,
           payload.accessories,
           payload.notes,
@@ -161,9 +171,14 @@ function createDatabase(config) {
             password_hash,
             role,
             is_active,
+            must_change_password,
+            password_changed_at,
+            failed_login_attempts,
+            locked_until,
+            last_login_at,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           payload.username,
@@ -171,6 +186,11 @@ function createDatabase(config) {
           payload.passwordHash,
           payload.role,
           payload.isActive ? 1 : 0,
+          payload.mustChangePassword ? 1 : 0,
+          payload.passwordChangedAt || now,
+          0,
+          "",
+          "",
           now,
           now
         );
@@ -199,6 +219,9 @@ function createDatabase(config) {
     },
     deleteSessionByTokenHash(tokenHash) {
       database.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
+    },
+    deleteSessionsByUserId(userId) {
+      database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
     },
     deleteDevice(deviceId) {
       const existingDevice = this.getDeviceById(deviceId);
@@ -305,9 +328,13 @@ function createDatabase(config) {
               asset_status AS assetStatus,
               condition_status AS conditionStatus,
               purchase_date AS purchaseDate,
+              purchase_price AS purchasePrice,
               assigned_at AS assignedAt,
               warranty_until AS warrantyUntil,
               supplier,
+              branch,
+              room,
+              desk,
               office_location AS officeLocation,
               accessories,
               notes,
@@ -388,9 +415,13 @@ function createDatabase(config) {
             asset_status AS assetStatus,
             condition_status AS conditionStatus,
             purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
             assigned_at AS assignedAt,
             warranty_until AS warrantyUntil,
             supplier,
+            branch,
+            room,
+            desk,
             office_location AS officeLocation,
             accessories,
             notes,
@@ -471,6 +502,11 @@ function createDatabase(config) {
               password_hash AS passwordHash,
               role,
               is_active AS isActive,
+              must_change_password AS mustChangePassword,
+              password_changed_at AS passwordChangedAt,
+              failed_login_attempts AS failedLoginAttempts,
+              locked_until AS lockedUntil,
+              last_login_at AS lastLoginAt,
               created_at AS createdAt,
               updated_at AS updatedAt
             FROM users
@@ -491,6 +527,11 @@ function createDatabase(config) {
               password_hash AS passwordHash,
               role,
               is_active AS isActive,
+              must_change_password AS mustChangePassword,
+              password_changed_at AS passwordChangedAt,
+              failed_login_attempts AS failedLoginAttempts,
+              locked_until AS lockedUntil,
+              last_login_at AS lastLoginAt,
               created_at AS createdAt,
               updated_at AS updatedAt
             FROM users
@@ -536,9 +577,13 @@ function createDatabase(config) {
                 asset_status,
                 condition_status,
                 purchase_date,
+                purchase_price,
                 assigned_at,
                 warranty_until,
                 supplier,
+                branch,
+                room,
+                desk,
                 office_location,
                 accessories,
                 notes,
@@ -548,7 +593,7 @@ function createDatabase(config) {
                 updated_by,
                 created_at,
                 updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `)
             .run(
               row.firstName,
@@ -562,9 +607,13 @@ function createDatabase(config) {
               row.assetStatus || DEFAULT_ASSET_STATUS,
               row.conditionStatus || DEFAULT_CONDITION_STATUS,
               row.purchaseDate,
+              row.purchasePrice,
               row.assignedAt,
               row.warrantyUntil,
               row.supplier,
+              row.branch,
+              row.room,
+              row.desk,
               row.officeLocation,
               row.accessories,
               row.notes,
@@ -652,6 +701,7 @@ function createDatabase(config) {
         .map(mapDevice);
     },
     listInventory(filters = {}) {
+      const orderBy = buildInventoryOrderBy(filters);
       return database
         .prepare(`
           SELECT
@@ -667,9 +717,13 @@ function createDatabase(config) {
             asset_status AS assetStatus,
             condition_status AS conditionStatus,
             purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
             assigned_at AS assignedAt,
             warranty_until AS warrantyUntil,
             supplier,
+            branch,
+            room,
+            desk,
             office_location AS officeLocation,
             accessories,
             notes,
@@ -679,7 +733,8 @@ function createDatabase(config) {
             updated_at AS updatedAt
           FROM inventory_records
           ${buildInventoryWhereClause()}
-          ORDER BY updated_at DESC, id DESC
+          ORDER BY ${orderBy}
+          LIMIT :limit OFFSET :offset
         `)
         .all(buildInventoryParams(filters))
         .map(mapInventoryRecord);
@@ -700,9 +755,13 @@ function createDatabase(config) {
             asset_status AS assetStatus,
             condition_status AS conditionStatus,
             purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
             assigned_at AS assignedAt,
             warranty_until AS warrantyUntil,
             supplier,
+            branch,
+            room,
+            desk,
             office_location AS officeLocation,
             accessories,
             notes,
@@ -733,9 +792,13 @@ function createDatabase(config) {
             asset_status AS assetStatus,
             condition_status AS conditionStatus,
             purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
             assigned_at AS assignedAt,
             warranty_until AS warrantyUntil,
             supplier,
+            branch,
+            room,
+            desk,
             office_location AS officeLocation,
             accessories,
             notes,
@@ -767,9 +830,13 @@ function createDatabase(config) {
             asset_status AS assetStatus,
             condition_status AS conditionStatus,
             purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
             assigned_at AS assignedAt,
             warranty_until AS warrantyUntil,
             supplier,
+            branch,
+            room,
+            desk,
             office_location AS officeLocation,
             accessories,
             notes,
@@ -795,6 +862,11 @@ function createDatabase(config) {
             full_name AS fullName,
             role,
             is_active AS isActive,
+            must_change_password AS mustChangePassword,
+            password_changed_at AS passwordChangedAt,
+            failed_login_attempts AS failedLoginAttempts,
+            locked_until AS lockedUntil,
+            last_login_at AS lastLoginAt,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM users
@@ -802,6 +874,467 @@ function createDatabase(config) {
         `)
         .all()
         .map(mapUser);
+    },
+    searchGlobal(queryText) {
+      const search = normalizeSearch(queryText);
+      const params = {
+        search,
+        searchPattern: search ? `%${escapeLike(search)}%` : "%",
+      };
+
+      if (!search) {
+        return {
+          audit: [],
+          departments: [],
+          devices: [],
+          inventory: [],
+          users: [],
+        };
+      }
+
+      return {
+        audit: database
+          .prepare(`
+            SELECT id, action, summary, created_at AS createdAt
+            FROM audit_logs
+            WHERE lower(action) LIKE :searchPattern ESCAPE '\\'
+               OR lower(summary) LIKE :searchPattern ESCAPE '\\'
+            ORDER BY created_at DESC, id DESC
+            LIMIT 5
+          `)
+          .all(params),
+        departments: database
+          .prepare(`
+            SELECT id, name, code
+            FROM departments
+            WHERE lower(name) LIKE :searchPattern ESCAPE '\\'
+               OR lower(code) LIKE :searchPattern ESCAPE '\\'
+            ORDER BY name COLLATE NOCASE ASC
+            LIMIT 5
+          `)
+          .all(params),
+        devices: database
+          .prepare(`
+            SELECT id, name, category, model
+            FROM devices
+            WHERE lower(name) LIKE :searchPattern ESCAPE '\\'
+               OR lower(category) LIKE :searchPattern ESCAPE '\\'
+               OR lower(model) LIKE :searchPattern ESCAPE '\\'
+            ORDER BY name COLLATE NOCASE ASC
+            LIMIT 5
+          `)
+          .all(params),
+        inventory: database
+          .prepare(`
+            SELECT
+              id,
+              first_name AS firstName,
+              last_name AS lastName,
+              device_name AS deviceName,
+              department,
+              asset_tag AS assetTag
+            FROM inventory_records
+            WHERE lower(first_name) LIKE :searchPattern ESCAPE '\\'
+               OR lower(last_name) LIKE :searchPattern ESCAPE '\\'
+               OR lower(device_name) LIKE :searchPattern ESCAPE '\\'
+               OR lower(department) LIKE :searchPattern ESCAPE '\\'
+               OR lower(asset_tag) LIKE :searchPattern ESCAPE '\\'
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 8
+          `)
+          .all(params),
+        users: database
+          .prepare(`
+            SELECT id, username, full_name AS fullName, role
+            FROM users
+            WHERE lower(username) LIKE :searchPattern ESCAPE '\\'
+               OR lower(full_name) LIKE :searchPattern ESCAPE '\\'
+            ORDER BY full_name COLLATE NOCASE ASC
+            LIMIT 5
+          `)
+          .all(params),
+      };
+    },
+    countActiveSessions() {
+      return database
+        .prepare(`
+          SELECT COUNT(*) AS total
+          FROM sessions
+          WHERE expires_at > ?
+        `)
+        .get(getNow()).total;
+    },
+    getSystemMetrics() {
+      const databaseStat = fs.existsSync(config.databasePath) ? fs.statSync(config.databasePath) : null;
+
+      return {
+        activeSessions: this.countActiveSessions(),
+        attachmentFiles: database.prepare("SELECT COUNT(*) AS total FROM inventory_attachments").get().total,
+        backupCount: database.prepare("SELECT COUNT(*) AS total FROM backup_runs").get().total,
+        databaseSizeBytes: databaseStat?.size || 0,
+        records: this.getInventoryStats(),
+        serviceLogs: database.prepare("SELECT COUNT(*) AS total FROM inventory_service_logs").get().total,
+        totalUsers: database.prepare("SELECT COUNT(*) AS total FROM users").get().total,
+        transfers: database.prepare("SELECT COUNT(*) AS total FROM inventory_transfers").get().total,
+        uploadsSizeBytes: getDirectorySize(config.attachmentsDir),
+      };
+    },
+    markUserLoginFailed(userId, payload = {}) {
+      const currentUser = this.getUserById(userId);
+
+      if (!currentUser) {
+        return null;
+      }
+
+      const nextAttemptCount = Number(currentUser.failedLoginAttempts || 0) + 1;
+      const lockedUntil =
+        nextAttemptCount >= config.loginMaxAttempts
+          ? new Date(Date.now() + config.loginLockDurationMs).toISOString()
+          : "";
+
+      database
+        .prepare(`
+          UPDATE users
+          SET
+            failed_login_attempts = ?,
+            locked_until = ?,
+            updated_at = ?
+          WHERE id = ?
+        `)
+        .run(nextAttemptCount, lockedUntil, getNow(), userId);
+
+      return {
+        failedLoginAttempts: nextAttemptCount,
+        lockedUntil,
+        username: payload.username || currentUser.username,
+      };
+    },
+    markUserLoginSuccess(userId) {
+      const now = getNow();
+      database
+        .prepare(`
+          UPDATE users
+          SET
+            failed_login_attempts = 0,
+            locked_until = '',
+            last_login_at = ?,
+            updated_at = ?
+          WHERE id = ?
+        `)
+        .run(now, now, userId);
+
+      return this.getUserById(userId);
+    },
+    createAttachment(recordId, payload, userId) {
+      const now = getNow();
+      const result = database
+        .prepare(`
+          INSERT INTO inventory_attachments (
+            inventory_record_id,
+            file_name,
+            stored_name,
+            mime_type,
+            file_size,
+            file_path,
+            created_by,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          recordId,
+          payload.fileName,
+          payload.storedName,
+          payload.mimeType,
+          payload.fileSize,
+          payload.filePath,
+          userId,
+          now
+        );
+
+      return this.getAttachmentById(result.lastInsertRowid);
+    },
+    createBackupRun(fileName, summary, userId) {
+      const now = getNow();
+      const result = database
+        .prepare(`
+          INSERT INTO backup_runs (
+            file_name,
+            summary,
+            created_by,
+            created_at
+          ) VALUES (?, ?, ?, ?)
+        `)
+        .run(fileName, summary, userId, now);
+
+      return database
+        .prepare(`
+          SELECT
+            id,
+            file_name AS fileName,
+            summary,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM backup_runs
+          WHERE id = ?
+        `)
+        .get(result.lastInsertRowid);
+    },
+    createServiceLog(recordId, payload, userId) {
+      const now = getNow();
+      const result = database
+        .prepare(`
+          INSERT INTO inventory_service_logs (
+            inventory_record_id,
+            service_date,
+            service_type,
+            vendor,
+            cost,
+            notes,
+            created_by,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          recordId,
+          payload.serviceDate,
+          payload.serviceType,
+          payload.vendor,
+          payload.cost,
+          payload.notes,
+          userId,
+          now
+        );
+
+      return this.getServiceLogById(result.lastInsertRowid);
+    },
+    createTransfer(recordId, payload, userId) {
+      const now = getNow();
+      const result = database
+        .prepare(`
+          INSERT INTO inventory_transfers (
+            inventory_record_id,
+            from_holder,
+            to_holder,
+            from_department,
+            to_department,
+            from_status,
+            to_status,
+            transfer_date,
+            notes,
+            created_by,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          recordId,
+          payload.fromHolder || "",
+          payload.toHolder || "",
+          payload.fromDepartment || "",
+          payload.toDepartment || "",
+          payload.fromStatus || "",
+          payload.toStatus || "",
+          payload.transferDate || now.slice(0, 10),
+          payload.notes || "",
+          userId,
+          now
+        );
+
+      return this.getTransferById(result.lastInsertRowid);
+    },
+    exportBackupPayload() {
+      return {
+        backupVersion: 1,
+        createdAt: getNow(),
+        data: {
+          attachments: database.prepare("SELECT * FROM inventory_attachments ORDER BY id ASC").all(),
+          auditLogs: database.prepare("SELECT * FROM audit_logs ORDER BY id ASC").all(),
+          backupRuns: database.prepare("SELECT * FROM backup_runs ORDER BY id ASC").all(),
+          departments: database.prepare("SELECT * FROM departments ORDER BY id ASC").all(),
+          devices: database.prepare("SELECT * FROM devices ORDER BY id ASC").all(),
+          inventoryRecords: database.prepare("SELECT * FROM inventory_records ORDER BY id ASC").all(),
+          serviceLogs: database.prepare("SELECT * FROM inventory_service_logs ORDER BY id ASC").all(),
+          transfers: database.prepare("SELECT * FROM inventory_transfers ORDER BY id ASC").all(),
+          users: database.prepare("SELECT * FROM users ORDER BY id ASC").all(),
+        },
+      };
+    },
+    getAttachmentById(attachmentId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            file_name AS fileName,
+            stored_name AS storedName,
+            mime_type AS mimeType,
+            file_size AS fileSize,
+            file_path AS filePath,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_attachments
+          WHERE id = ?
+          LIMIT 1
+        `)
+        .get(attachmentId);
+    },
+    getServiceLogById(serviceLogId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            service_date AS serviceDate,
+            service_type AS serviceType,
+            vendor,
+            cost,
+            notes,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_service_logs
+          WHERE id = ?
+          LIMIT 1
+        `)
+        .get(serviceLogId);
+    },
+    getTransferById(transferId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            from_holder AS fromHolder,
+            to_holder AS toHolder,
+            from_department AS fromDepartment,
+            to_department AS toDepartment,
+            from_status AS fromStatus,
+            to_status AS toStatus,
+            transfer_date AS transferDate,
+            notes,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_transfers
+          WHERE id = ?
+          LIMIT 1
+        `)
+        .get(transferId);
+    },
+    listAttachments(recordId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            file_name AS fileName,
+            stored_name AS storedName,
+            mime_type AS mimeType,
+            file_size AS fileSize,
+            file_path AS filePath,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_attachments
+          WHERE inventory_record_id = ?
+          ORDER BY created_at DESC, id DESC
+        `)
+        .all(recordId);
+    },
+    listBackupRuns(limit = 20) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            file_name AS fileName,
+            summary,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM backup_runs
+          ORDER BY created_at DESC, id DESC
+          LIMIT ?
+        `)
+        .all(limit);
+    },
+    listServiceLogs(recordId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            service_date AS serviceDate,
+            service_type AS serviceType,
+            vendor,
+            cost,
+            notes,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_service_logs
+          WHERE inventory_record_id = ?
+          ORDER BY service_date DESC, id DESC
+        `)
+        .all(recordId);
+    },
+    listTransfers(recordId) {
+      return database
+        .prepare(`
+          SELECT
+            id,
+            inventory_record_id AS inventoryRecordId,
+            from_holder AS fromHolder,
+            to_holder AS toHolder,
+            from_department AS fromDepartment,
+            to_department AS toDepartment,
+            from_status AS fromStatus,
+            to_status AS toStatus,
+            transfer_date AS transferDate,
+            notes,
+            created_by AS createdBy,
+            created_at AS createdAt
+          FROM inventory_transfers
+          WHERE inventory_record_id = ?
+          ORDER BY transfer_date DESC, id DESC
+        `)
+        .all(recordId);
+    },
+    removeAttachment(attachmentId) {
+      const attachment = this.getAttachmentById(attachmentId);
+
+      if (!attachment) {
+        return null;
+      }
+
+      database.prepare("DELETE FROM inventory_attachments WHERE id = ?").run(attachmentId);
+      return attachment;
+    },
+    restoreBackupPayload(payload) {
+      database.exec("BEGIN IMMEDIATE");
+
+      try {
+        database.exec(`
+          DELETE FROM inventory_attachments;
+          DELETE FROM inventory_service_logs;
+          DELETE FROM inventory_transfers;
+          DELETE FROM audit_logs;
+          DELETE FROM backup_runs;
+          DELETE FROM sessions;
+          DELETE FROM inventory_records;
+          DELETE FROM departments;
+          DELETE FROM devices;
+          DELETE FROM users;
+        `);
+
+        insertMany(database, "users", payload.data.users || []);
+        insertMany(database, "departments", payload.data.departments || []);
+        insertMany(database, "devices", payload.data.devices || []);
+        insertMany(database, "inventory_records", payload.data.inventoryRecords || []);
+        insertMany(database, "inventory_service_logs", payload.data.serviceLogs || []);
+        insertMany(database, "inventory_transfers", payload.data.transfers || []);
+        insertMany(database, "inventory_attachments", payload.data.attachments || []);
+        insertMany(database, "backup_runs", payload.data.backupRuns || []);
+        insertMany(database, "audit_logs", payload.data.auditLogs || []);
+
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
     },
     logAudit(payload) {
       database
@@ -925,9 +1458,13 @@ function createDatabase(config) {
             asset_status = ?,
             condition_status = ?,
             purchase_date = ?,
+            purchase_price = ?,
             assigned_at = ?,
             warranty_until = ?,
             supplier = ?,
+            branch = ?,
+            room = ?,
+            desk = ?,
             office_location = ?,
             accessories = ?,
             notes = ?,
@@ -949,9 +1486,13 @@ function createDatabase(config) {
           payload.assetStatus,
           payload.conditionStatus,
           payload.purchaseDate,
+          payload.purchasePrice,
           payload.assignedAt,
           payload.warrantyUntil,
           payload.supplier,
+          payload.branch,
+          payload.room,
+          payload.desk,
           payload.officeLocation,
           payload.accessories,
           payload.notes,
@@ -975,10 +1516,19 @@ function createDatabase(config) {
             full_name = ?,
             role = ?,
             is_active = ?,
+            must_change_password = ?,
             updated_at = ?
           WHERE id = ?
         `)
-        .run(payload.username, payload.fullName, payload.role, payload.isActive ? 1 : 0, now, userId);
+        .run(
+          payload.username,
+          payload.fullName,
+          payload.role,
+          payload.isActive ? 1 : 0,
+          payload.mustChangePassword ? 1 : 0,
+          now,
+          userId
+        );
 
       if (payload.passwordHash) {
         database
@@ -986,11 +1536,33 @@ function createDatabase(config) {
             UPDATE users
             SET
               password_hash = ?,
+              must_change_password = 0,
+              password_changed_at = ?,
+              failed_login_attempts = 0,
+              locked_until = '',
               updated_at = ?
             WHERE id = ?
           `)
-          .run(payload.passwordHash, getNow(), userId);
+          .run(payload.passwordHash, getNow(), getNow(), userId);
       }
+
+      return this.getUserById(userId);
+    },
+    updateUserPassword(userId, passwordHash, options = {}) {
+      const now = getNow();
+      database
+        .prepare(`
+          UPDATE users
+          SET
+            password_hash = ?,
+            must_change_password = ?,
+            password_changed_at = ?,
+            failed_login_attempts = 0,
+            locked_until = '',
+            updated_at = ?
+          WHERE id = ?
+        `)
+        .run(passwordHash, options.mustChangePassword ? 1 : 0, now, now, userId);
 
       return this.getUserById(userId);
     },
@@ -1012,6 +1584,11 @@ function initializeDatabase(database) {
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'admin',
       is_active INTEGER NOT NULL DEFAULT 1,
+      must_change_password INTEGER NOT NULL DEFAULT 0,
+      password_changed_at TEXT NOT NULL DEFAULT '',
+      failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until TEXT NOT NULL DEFAULT '',
+      last_login_at TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -1060,9 +1637,13 @@ function initializeDatabase(database) {
       asset_status TEXT NOT NULL DEFAULT 'in_use',
       condition_status TEXT NOT NULL DEFAULT 'good',
       purchase_date TEXT NOT NULL DEFAULT '',
+      purchase_price REAL NOT NULL DEFAULT 0,
       assigned_at TEXT NOT NULL DEFAULT '',
       warranty_until TEXT NOT NULL DEFAULT '',
       supplier TEXT NOT NULL DEFAULT '',
+      branch TEXT NOT NULL DEFAULT '',
+      room TEXT NOT NULL DEFAULT '',
+      desk TEXT NOT NULL DEFAULT '',
       office_location TEXT NOT NULL DEFAULT '',
       accessories TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
@@ -1074,6 +1655,60 @@ function initializeDatabase(database) {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_service_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_record_id INTEGER NOT NULL,
+      service_date TEXT NOT NULL,
+      service_type TEXT NOT NULL,
+      vendor TEXT NOT NULL DEFAULT '',
+      cost REAL NOT NULL DEFAULT 0,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (inventory_record_id) REFERENCES inventory_records(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_transfers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_record_id INTEGER NOT NULL,
+      from_holder TEXT NOT NULL DEFAULT '',
+      to_holder TEXT NOT NULL DEFAULT '',
+      from_department TEXT NOT NULL DEFAULT '',
+      to_department TEXT NOT NULL DEFAULT '',
+      from_status TEXT NOT NULL DEFAULT '',
+      to_status TEXT NOT NULL DEFAULT '',
+      transfer_date TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (inventory_record_id) REFERENCES inventory_records(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_record_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      stored_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      file_size INTEGER NOT NULL DEFAULT 0,
+      file_path TEXT NOT NULL,
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (inventory_record_id) REFERENCES inventory_records(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS backup_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_name TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -1094,6 +1729,11 @@ function initializeDatabase(database) {
 
   ensureColumn(database, "users", "role", "TEXT NOT NULL DEFAULT 'admin'");
   ensureColumn(database, "users", "is_active", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(database, "users", "must_change_password", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(database, "users", "password_changed_at", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "users", "failed_login_attempts", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(database, "users", "locked_until", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "users", "last_login_at", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "department_id", "INTEGER");
   ensureColumn(database, "inventory_records", "device_id", "INTEGER");
   ensureColumn(database, "inventory_records", "asset_tag", "TEXT NOT NULL DEFAULT ''");
@@ -1101,9 +1741,13 @@ function initializeDatabase(database) {
   ensureColumn(database, "inventory_records", "asset_status", `TEXT NOT NULL DEFAULT '${DEFAULT_ASSET_STATUS}'`);
   ensureColumn(database, "inventory_records", "condition_status", `TEXT NOT NULL DEFAULT '${DEFAULT_CONDITION_STATUS}'`);
   ensureColumn(database, "inventory_records", "purchase_date", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "purchase_price", "REAL NOT NULL DEFAULT 0");
   ensureColumn(database, "inventory_records", "assigned_at", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "warranty_until", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "supplier", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "branch", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "room", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, "inventory_records", "desk", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "office_location", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "accessories", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(database, "inventory_records", "notes", "TEXT NOT NULL DEFAULT ''");
@@ -1117,9 +1761,13 @@ function initializeDatabase(database) {
       asset_status = COALESCE(NULLIF(asset_status, ''), '${DEFAULT_ASSET_STATUS}'),
       condition_status = COALESCE(NULLIF(condition_status, ''), '${DEFAULT_CONDITION_STATUS}'),
       purchase_date = COALESCE(purchase_date, ''),
+      purchase_price = COALESCE(purchase_price, 0),
       assigned_at = COALESCE(assigned_at, ''),
       warranty_until = COALESCE(warranty_until, ''),
       supplier = COALESCE(supplier, ''),
+      branch = COALESCE(branch, ''),
+      room = COALESCE(room, ''),
+      desk = COALESCE(desk, ''),
       office_location = COALESCE(office_location, ''),
       accessories = COALESCE(accessories, ''),
       notes = COALESCE(notes, '')
@@ -1128,6 +1776,7 @@ function initializeDatabase(database) {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_users_locked_until ON users(locked_until);
     CREATE INDEX IF NOT EXISTS idx_users_role_active ON users(role, is_active);
     CREATE INDEX IF NOT EXISTS idx_departments_name ON departments(name);
     CREATE INDEX IF NOT EXISTS idx_devices_name ON devices(name);
@@ -1135,9 +1784,13 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_inventory_device_id ON inventory_records(device_id);
     CREATE INDEX IF NOT EXISTS idx_inventory_asset_status ON inventory_records(asset_status);
     CREATE INDEX IF NOT EXISTS idx_inventory_condition_status ON inventory_records(condition_status);
+    CREATE INDEX IF NOT EXISTS idx_inventory_asset_tag ON inventory_records(asset_tag);
     CREATE INDEX IF NOT EXISTS idx_inventory_purchase_date ON inventory_records(purchase_date DESC);
     CREATE INDEX IF NOT EXISTS idx_inventory_warranty_until ON inventory_records(warranty_until ASC);
     CREATE INDEX IF NOT EXISTS idx_inventory_updated_at ON inventory_records(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_service_logs_record_date ON inventory_service_logs(inventory_record_id, service_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_transfers_record_date ON inventory_transfers(inventory_record_id, transfer_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_attachments_record ON inventory_attachments(inventory_record_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entity_type ON audit_logs(entity_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action, created_at DESC);
   `);
@@ -1160,14 +1813,21 @@ function seedDefaultAdmin(database, config) {
         password_hash,
         role,
         is_active,
+        must_change_password,
+        password_changed_at,
+        failed_login_attempts,
+        locked_until,
+        last_login_at,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, 'admin', 1, ?, ?)
+      ) VALUES (?, ?, ?, 'admin', 1, ?, ?, 0, '', '', ?, ?)
     `)
     .run(
       config.defaultAdminUsername,
       config.defaultAdminName,
       hashPassword(config.defaultAdminPassword),
+      config.forceDefaultAdminPasswordChange ? 1 : 0,
+      now,
       now,
       now
     );
@@ -1432,6 +2092,9 @@ function buildInventoryWhereClause() {
       lower(purchase_date) LIKE :searchPattern ESCAPE '\\' OR
       lower(warranty_until) LIKE :searchPattern ESCAPE '\\' OR
       lower(supplier) LIKE :searchPattern ESCAPE '\\' OR
+      lower(branch) LIKE :searchPattern ESCAPE '\\' OR
+      lower(room) LIKE :searchPattern ESCAPE '\\' OR
+      lower(desk) LIKE :searchPattern ESCAPE '\\' OR
       lower(office_location) LIKE :searchPattern ESCAPE '\\' OR
       lower(accessories) LIKE :searchPattern ESCAPE '\\' OR
       lower(notes) LIKE :searchPattern ESCAPE '\\' OR
@@ -1446,6 +2109,23 @@ function buildInventoryWhereClause() {
 }
 
 function buildInventoryParams(filters = {}) {
+  return {
+    ...buildInventoryFilterParams(filters),
+    limit: clampInteger(filters.pageSize, 25, 5, 100),
+    offset: (clampInteger(filters.page, 1, 1, 999999) - 1) * clampInteger(filters.pageSize, 25, 5, 100),
+  };
+}
+
+function buildInventoryStatsParams(filters = {}) {
+  return {
+    ...buildInventoryFilterParams(filters),
+    today: getTodayIsoDate(),
+    warrantyLimit: getFutureIsoDate(30),
+    yearStart: getYearStartIsoDate(),
+  };
+}
+
+function buildInventoryFilterParams(filters = {}) {
   const search = normalizeSearch(filters.search);
 
   return {
@@ -1455,15 +2135,6 @@ function buildInventoryParams(filters = {}) {
     deviceId: Number(filters.deviceId) || 0,
     search,
     searchPattern: search ? `%${escapeLike(search)}%` : "%",
-  };
-}
-
-function buildInventoryStatsParams(filters = {}) {
-  return {
-    ...buildInventoryParams(filters),
-    today: getTodayIsoDate(),
-    warrantyLimit: getFutureIsoDate(30),
-    yearStart: getYearStartIsoDate(),
   };
 }
 
@@ -1523,10 +2194,14 @@ function mapInventoryRecord(row) {
     assetStatus: row.assetStatus || DEFAULT_ASSET_STATUS,
     assetTag: row.assetTag || "",
     assignedAt: row.assignedAt || "",
+    branch: row.branch || "",
     conditionStatus: row.conditionStatus || DEFAULT_CONDITION_STATUS,
+    desk: row.desk || "",
     notes: row.notes || "",
     officeLocation: row.officeLocation || "",
     purchaseDate: row.purchaseDate || "",
+    purchasePrice: Number(row.purchasePrice || 0),
+    room: row.room || "",
     serialNumber: row.serialNumber || "",
     supplier: row.supplier || "",
     warrantyUntil: row.warrantyUntil || "",
@@ -1540,7 +2215,9 @@ function mapUser(row) {
 
   const mappedRow = {
     ...row,
+    failedLoginAttempts: Number(row.failedLoginAttempts || 0),
     isActive: Boolean(row.isActive),
+    mustChangePassword: Boolean(row.mustChangePassword),
   };
 
   if (!mappedRow.passwordHash) {
@@ -1577,6 +2254,32 @@ function normalizeText(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
 
+function buildInventoryOrderBy(filters = {}) {
+  const sortBy = String(filters.sortBy || "updatedAt");
+  const direction = String(filters.sortDir || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
+  const sortableColumns = {
+    assetTag: "asset_tag",
+    currentHolder: "current_holder",
+    department: "department",
+    deviceName: "device_name",
+    purchaseDate: "purchase_date",
+    updatedAt: "updated_at",
+    warrantyUntil: "warranty_until",
+  };
+  const sortColumn = sortableColumns[sortBy] || "updated_at";
+  return `${sortColumn} ${direction}, id DESC`;
+}
+
+function clampInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, parsed));
+}
+
 function escapeLike(value) {
   return value.replace(/[\\%_]/g, "\\$&");
 }
@@ -1601,6 +2304,37 @@ function getYearStartIsoDate() {
 
 function unique(items) {
   return [...new Set(items)];
+}
+
+function insertMany(database, tableName, rows) {
+  rows.forEach((row) => {
+    const keys = Object.keys(row || {});
+
+    if (!keys.length) {
+      return;
+    }
+
+    const placeholders = keys.map(() => "?").join(", ");
+    const columns = keys.join(", ");
+    const statement = database.prepare(`INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})`);
+    statement.run(...keys.map((key) => row[key]));
+  });
+}
+
+function getDirectorySize(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return 0;
+  }
+
+  const stat = fs.statSync(targetPath);
+
+  if (stat.isFile()) {
+    return stat.size;
+  }
+
+  return fs.readdirSync(targetPath).reduce((total, entry) => {
+    return total + getDirectorySize(path.join(targetPath, entry));
+  }, 0);
 }
 
 module.exports = {

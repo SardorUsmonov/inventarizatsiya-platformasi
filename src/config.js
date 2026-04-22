@@ -4,12 +4,20 @@ const rootDir = path.resolve(__dirname, "..");
 const rawTrustProxy = process.env.TRUST_PROXY;
 
 module.exports = {
+  appBaseUrl: process.env.APP_BASE_URL || "",
+  attachmentsDir: process.env.ATTACHMENTS_DIR || path.join(rootDir, "data", "attachments"),
+  backupsDir: process.env.BACKUPS_DIR || path.join(rootDir, "data", "backups"),
   cookieName: process.env.COOKIE_NAME || "inventory_session",
   databasePath: process.env.DATABASE_PATH || path.join(rootDir, "data", "inventory.sqlite"),
   defaultAdminName: process.env.ADMIN_FULL_NAME || "Administrator",
   defaultAdminPassword: process.env.ADMIN_PASSWORD || "Admin123!",
   defaultAdminUsername: process.env.ADMIN_USERNAME || "admin",
+  forceDefaultAdminPasswordChange: process.env.FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE !== "false",
+  loginLockDurationMs: Number(process.env.LOGIN_LOCK_DURATION_MS || 1000 * 60 * 15),
+  loginMaxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS || 5),
   maxImportBytes: Number(process.env.MAX_IMPORT_BYTES || 5 * 1024 * 1024),
+  maxRestoreBytes: Number(process.env.MAX_RESTORE_BYTES || 20 * 1024 * 1024),
+  maxAttachmentBytes: Number(process.env.MAX_ATTACHMENT_BYTES || 15 * 1024 * 1024),
   port: Number(process.env.PORT || 3000),
   rootDir,
   secureCookies: process.env.NODE_ENV === "production",

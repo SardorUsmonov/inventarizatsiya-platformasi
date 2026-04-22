@@ -132,6 +132,10 @@
             <span class="tab-button__icon">AU</span>
             <span class="tab-button__text">Audit log</span>
           </button>
+          <button class="tab-button" data-tab-target="settings" id="settingsTabButton" type="button">
+            <span class="tab-button__icon">ST</span>
+            <span class="tab-button__text">Settings</span>
+          </button>
         </nav>
 
         <section class="sidebar__card">
@@ -154,15 +158,33 @@
             <h2 class="topbar__title">Boshqaruv paneli</h2>
           </div>
 
-          <div class="session-chip">
-            <div class="session-chip__meta">
-              <span class="session-chip__label">Aktiv foydalanuvchi</span>
-              <strong id="sessionUser">-</strong>
-              <span class="session-chip__role" id="sessionRole">-</span>
+          <div class="topbar__actions">
+            <div class="global-search" id="globalSearchBox">
+              <label class="search search--compact">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
+                </svg>
+                <input id="globalSearchInput" type="search" placeholder="Global search: asset, bo'lim, audit, user">
+              </label>
+              <div class="search-results hidden" id="globalSearchResults"></div>
             </div>
-            <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
+
+            <button class="ghost-button" id="themeToggleButton" type="button">Dark mode</button>
+
+            <div class="session-chip">
+              <div class="session-chip__meta">
+                <span class="session-chip__label">Aktiv foydalanuvchi</span>
+                <strong id="sessionUser">-</strong>
+                <span class="session-chip__role" id="sessionRole">-</span>
+              </div>
+              <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
+            </div>
           </div>
         </header>
+
+        <div class="status-banner status-banner--error hidden" id="passwordChangeNotice" role="alert">
+          Xavfsizlik uchun parolni yangilash majburiy. Avval yangi parol o'rnating.
+        </div>
 
         <header class="hero">
           <div class="hero__content">
@@ -443,6 +465,11 @@
                 </label>
 
                 <label class="field">
+                  <span>Sotib olish narxi</span>
+                  <input id="purchasePrice" type="number" min="0" step="0.01" placeholder="Masalan: 1450">
+                </label>
+
+                <label class="field">
                   <span>Biriktirilgan sana</span>
                   <input id="assignedAt" type="date">
                 </label>
@@ -455,6 +482,21 @@
                 <label class="field">
                   <span>Yetkazib beruvchi</span>
                   <input id="supplier" type="text" placeholder="Masalan: Dell Uzbekistan">
+                </label>
+
+                <label class="field">
+                  <span>Filial</span>
+                  <input id="branch" type="text" placeholder="Masalan: Toshkent HQ">
+                </label>
+
+                <label class="field">
+                  <span>Xona</span>
+                  <input id="room" type="text" placeholder="Masalan: 304">
+                </label>
+
+                <label class="field">
+                  <span>Stol</span>
+                  <input id="desk" type="text" placeholder="Masalan: D-12">
                 </label>
 
                 <label class="field">
@@ -589,14 +631,68 @@
                   <select class="toolbar-select" id="filterDeviceId"></select>
                   <select class="toolbar-select" id="filterAssetStatus"></select>
                   <select class="toolbar-select" id="filterConditionStatus"></select>
+                  <select class="toolbar-select" id="sortBySelect">
+                    <option value="updatedAt">Sort: Yangilangan sana</option>
+                    <option value="purchaseDate">Sort: Xarid sanasi</option>
+                    <option value="warrantyUntil">Sort: Kafolat</option>
+                    <option value="assetTag">Sort: Asset tag</option>
+                    <option value="currentHolder">Sort: Hozirgi holder</option>
+                    <option value="department">Sort: Bo'lim</option>
+                  </select>
+                  <select class="toolbar-select" id="sortDirectionSelect">
+                    <option value="desc">Kamayish</option>
+                    <option value="asc">O'sish</option>
+                  </select>
+                  <select class="toolbar-select" id="pageSizeSelect">
+                    <option value="10">10 / sahifa</option>
+                    <option value="25" selected>25 / sahifa</option>
+                    <option value="50">50 / sahifa</option>
+                    <option value="100">100 / sahifa</option>
+                  </select>
                   <button class="secondary-button" id="refreshButton" type="button">Yangilash</button>
+                  <button class="secondary-button" id="saveFiltersButton" type="button">Filter saqlash</button>
+                  <button class="secondary-button" id="applySavedFiltersButton" type="button">Saqlanganni qo'llash</button>
+                  <button class="secondary-button" id="clearFiltersButton" type="button">Tozalash</button>
+                  <button class="secondary-button hidden" id="previewImportButton" type="button">Import preview</button>
                   <button class="secondary-button hidden" id="downloadTemplateButton" type="button">Template</button>
                   <button class="secondary-button hidden" id="importButton" type="button">Excel import</button>
                   <button class="secondary-button hidden" id="exportExcelButton" type="button">Excel eksport</button>
                   <button class="secondary-button hidden" id="exportCsvButton" type="button">CSV eksport</button>
                   <input class="hidden" id="importFileInput" type="file" accept=".xlsx,.xlsm,.xls">
+                  <input class="hidden" id="previewImportFileInput" type="file" accept=".xlsx,.xlsm,.xls">
                 </div>
               </div>
+
+              <section class="inline-panel hidden" id="importPreviewPanel">
+                <div class="inline-panel__header">
+                  <div>
+                    <p class="panel__eyebrow">Excel preview</p>
+                    <h3>Importdan oldin tekshiruv</h3>
+                    <p class="panel__subtext" id="importPreviewSummary">Fayl tanlangach qatorlar shu yerda ko'rinadi.</p>
+                  </div>
+
+                  <div class="row-actions">
+                    <button class="primary-button" id="confirmImportButton" type="button">Importni tasdiqlash</button>
+                    <button class="ghost-button" id="cancelImportPreviewButton" type="button">Bekor qilish</button>
+                  </div>
+                </div>
+
+                <div class="status-banner status-banner--error hidden" id="importPreviewErrors"></div>
+
+                <div class="table-wrap table-wrap--compact">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Holder</th>
+                        <th>Bo'lim</th>
+                        <th>Texnika</th>
+                        <th>Asset</th>
+                      </tr>
+                    </thead>
+                    <tbody id="importPreviewTableBody"></tbody>
+                  </table>
+                </div>
+              </section>
 
               <div class="table-wrap">
                 <table>
@@ -625,6 +721,108 @@
                 <h3>Yozuv topilmadi</h3>
                 <p id="emptyStateText">Hali birorta inventar yozuvi mavjud emas.</p>
               </div>
+
+              <div class="table-footer">
+                <div class="table-footer__summary" id="paginationSummary">0 ta yozuv</div>
+                <div class="table-footer__actions">
+                  <button class="ghost-button" id="previousPageButton" type="button">Oldingi</button>
+                  <span class="table-footer__page" id="paginationIndicator">1 / 1</span>
+                  <button class="ghost-button" id="nextPageButton" type="button">Keyingi</button>
+                </div>
+              </div>
+
+              <section class="detail-panel hidden" id="inventoryDetailPanel">
+                <div class="detail-panel__header">
+                  <div>
+                    <p class="panel__eyebrow">Asset detail</p>
+                    <h3 id="detailTitle">Aktiv tanlanmagan</h3>
+                    <p class="panel__subtext" id="detailSubtitle">Qatorni tanlab, QR, servis tarixi va attachmentlarni ko'ring.</p>
+                  </div>
+
+                  <div class="row-actions">
+                    <button class="ghost-button" id="refreshDetailButton" type="button">Yangilash</button>
+                  </div>
+                </div>
+
+                <div class="detail-grid">
+                  <section class="mini-panel">
+                    <div class="mini-panel__header">
+                      <h3>Aktiv pasporti</h3>
+                    </div>
+                    <div class="detail-list" id="detailMetaList"></div>
+                  </section>
+
+                  <section class="mini-panel qr-panel">
+                    <div class="mini-panel__header">
+                      <h3>QR kartasi</h3>
+                    </div>
+                    <img class="qr-panel__image" id="detailQrImage" alt="Asset QR code">
+                    <a class="secondary-button qr-panel__link" id="detailQrLink" target="_blank" rel="noopener">QR ni ochish</a>
+                  </section>
+                </div>
+
+                <div class="detail-grid">
+                  <section class="mini-panel">
+                    <div class="mini-panel__header">
+                      <h3>Transfer history</h3>
+                    </div>
+                    <div class="timeline" id="transferTimeline"></div>
+                  </section>
+
+                  <section class="mini-panel">
+                    <div class="mini-panel__header">
+                      <h3>Servis tarixi</h3>
+                    </div>
+
+                    <form class="inventory-form inventory-form--compact" id="serviceLogForm">
+                      <label class="field">
+                        <span>Sana</span>
+                        <input id="serviceDateInput" type="date" required>
+                      </label>
+
+                      <label class="field">
+                        <span>Turi</span>
+                        <input id="serviceTypeInput" type="text" placeholder="Masalan: Diagnostics" required>
+                      </label>
+
+                      <label class="field">
+                        <span>Vendor</span>
+                        <input id="serviceVendorInput" type="text" placeholder="Masalan: Service Center">
+                      </label>
+
+                      <label class="field">
+                        <span>Xarajat</span>
+                        <input id="serviceCostInput" type="number" min="0" step="0.01" placeholder="0">
+                      </label>
+
+                      <label class="field field--full">
+                        <span>Izoh</span>
+                        <textarea id="serviceNotesInput" rows="3" placeholder="Qanday servis qilinganini yozing"></textarea>
+                      </label>
+
+                      <div class="form-actions">
+                        <button class="primary-button" id="serviceLogSubmitButton" type="submit">Servis yozuvi qo'shish</button>
+                      </div>
+                    </form>
+
+                    <div class="detail-list" id="serviceLogList"></div>
+                  </section>
+                </div>
+
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Attachmentlar</h3>
+                  </div>
+
+                  <div class="toolbar toolbar--inline">
+                    <input class="hidden" id="attachmentFileInput" type="file">
+                    <button class="secondary-button" id="attachmentPickButton" type="button">Fayl tanlash</button>
+                    <button class="primary-button" id="attachmentUploadButton" type="button">Upload qilish</button>
+                  </div>
+
+                  <div class="detail-list" id="attachmentList"></div>
+                </section>
+              </section>
             </section>
           </main>
         </section>
@@ -806,6 +1004,11 @@
                   <span>Faol holatda saqlansin</span>
                 </label>
 
+                <label class="checkbox-field">
+                  <input id="userMustChangePassword" type="checkbox">
+                  <span>Keyingi kirishda parolni yangilashi majburiy bo'lsin</span>
+                </label>
+
                 <div class="form-actions">
                   <button class="primary-button" id="userSubmitButton" type="submit">Saqlash</button>
                 </div>
@@ -828,7 +1031,9 @@
                       <th>F.I.Sh.</th>
                       <th>Login</th>
                       <th>Rol</th>
+                      <th>Security</th>
                       <th>Holat</th>
+                      <th>Oxirgi login</th>
                       <th>Amallar</th>
                     </tr>
                   </thead>
@@ -889,10 +1094,87 @@
             </div>
           </section>
         </section>
+
+        <section class="app-tab hidden" id="tabSettings">
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Security</p>
+                  <h2>Parol va sessiya nazorati</h2>
+                  <p class="panel__subtext">Session timeout, majburiy parol yangilash va login cheklovlari backend darajada ishlaydi.</p>
+                </div>
+              </div>
+
+              <div class="status-banner status-banner--error hidden" id="passwordChangeRequiredBanner">
+                Joriy sessiya uchun yangi parol o'rnatish majburiy. Boshqa bo'limlar vaqtincha cheklangan.
+              </div>
+
+              <form class="inventory-form" id="passwordChangeForm">
+                <label class="field">
+                  <span>Joriy parol</span>
+                  <input id="currentPasswordInput" type="password" autocomplete="current-password" required>
+                </label>
+
+                <label class="field">
+                  <span>Yangi parol</span>
+                  <input id="newPasswordInput" type="password" autocomplete="new-password" required>
+                </label>
+
+                <label class="field">
+                  <span>Yangi parolni tasdiqlang</span>
+                  <input id="confirmPasswordInput" type="password" autocomplete="new-password" required>
+                </label>
+
+                <div class="form-actions">
+                  <button class="primary-button" id="passwordChangeButton" type="submit">Parolni yangilash</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header panel__header--spread">
+                <div>
+                  <p class="panel__eyebrow">Reports</p>
+                  <h2>Printable report va system summary</h2>
+                  <p class="panel__subtext">Rahbariyat va audit uchun HTML report, JSON summary va global system ko'rsatkichlari.</p>
+                </div>
+
+                <div class="toolbar toolbar--inline">
+                  <button class="secondary-button" id="openHtmlReportButton" type="button">HTML report</button>
+                  <button class="secondary-button" id="downloadJsonReportButton" type="button">JSON summary</button>
+                  <button class="secondary-button" id="refreshSystemButton" type="button">System refresh</button>
+                </div>
+              </div>
+
+              <div class="metrics-grid" id="systemMetricsGrid"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header panel__header--spread">
+                <div>
+                  <p class="panel__eyebrow">Backup</p>
+                  <h2>Backup va restore</h2>
+                  <p class="panel__subtext">JSON backup yuklab olish va restore orqali tizimni qayta tiklash.</p>
+                </div>
+
+                <div class="toolbar toolbar--inline">
+                  <button class="secondary-button" id="downloadBackupButton" type="button">Backup yuklash</button>
+                  <button class="secondary-button" id="pickRestoreFileButton" type="button">Restore fayl</button>
+                  <button class="primary-button" id="restoreBackupButton" type="button">Restore qilish</button>
+                  <input class="hidden" id="restoreFileInput" type="file" accept=".json,application/json">
+                </div>
+              </div>
+
+              <div class="detail-list" id="backupRunsList"></div>
+            </section>
+          </div>
+        </section>
       </div>
     </div>
   </div>
 
   <script src="app.js"></script>
+  <script src="enhancements.js"></script>
 </body>
 </html>

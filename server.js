@@ -1,6 +1,9 @@
+const fs = require("node:fs");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const express = require("express");
 const multer = require("multer");
+const QRCode = require("qrcode");
 
 const config = require("./src/config");
 const { createDatabase } = require("./src/database");
@@ -36,9 +39,21 @@ const {
 } = require("./src/permissions");
 
 const app = express();
-const upload = multer({
+const importUpload = multer({
   limits: {
     fileSize: config.maxImportBytes,
+  },
+  storage: multer.memoryStorage(),
+});
+const attachmentUpload = multer({
+  limits: {
+    fileSize: config.maxAttachmentBytes,
+  },
+  storage: multer.memoryStorage(),
+});
+const restoreUpload = multer({
+  limits: {
+    fileSize: config.maxRestoreBytes,
   },
   storage: multer.memoryStorage(),
 });
@@ -64,6 +79,10 @@ app.get("/styles.css", (_request, response) => {
 
 app.get("/app.js", (_request, response) => {
   response.sendFile(path.join(config.rootDir, "app.js"));
+});
+
+app.get("/enhancements.js", (_request, response) => {
+  response.sendFile(path.join(config.rootDir, "enhancements.js"));
 });
 
 app.get("/favicon.ico", (_request, response) => {
@@ -106,7 +125,15 @@ app.post("/api/auth/login", (request, response) => {
 
   const user = database.getUserByUsername(username);
 
+  if (user?.lockedUntil && Date.parse(user.lockedUntil) > Date.now()) {
+    response.status(429).json({
+      message: "Kirish vaqtincha bloklangan. Bir necha daqiqadan keyin urinib ko'ring.",
+    });
+    return;
+  }
+
   if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+    const loginFailure = user ? database.markUserLoginFailed(user.id, { username: requestedUser }) : null;
     database.logAudit({
       action: "auth.login_failed",
       actorName: user?.fullName || null,
@@ -114,31 +141,39 @@ app.post("/api/auth/login", (request, response) => {
       actorUserId: user?.id || null,
       actorUsername: requestedUser,
       details: {
+        failedLoginAttempts: loginFailure?.failedLoginAttempts || 0,
+        lockedUntil: loginFailure?.lockedUntil || "",
         username: requestedUser,
       },
       entityType: "auth",
       ipAddress: request.ip,
-      summary: "Muvaffaqiyatsiz login urinish.",
+      summary: loginFailure?.lockedUntil
+        ? "Muvaffaqiyatsiz login urinish va foydalanuvchi vaqtincha bloklandi."
+        : "Muvaffaqiyatsiz login urinish.",
     });
 
-    response.status(401).json({
-      message: "Login yoki parol noto'g'ri.",
+    response.status(loginFailure?.lockedUntil ? 429 : 401).json({
+      message: loginFailure?.lockedUntil
+        ? "Ko'p xato urinish sabab login vaqtincha bloklandi."
+        : "Login yoki parol noto'g'ri.",
     });
     return;
   }
 
+  const refreshedUser = database.markUserLoginSuccess(user.id);
   const sessionToken = createSessionToken();
   const expiresAt = new Date(Date.now() + config.sessionTtlMs).toISOString();
 
-  database.createSession(user.id, hashSessionToken(sessionToken), expiresAt);
+  database.createSession(refreshedUser.id, hashSessionToken(sessionToken), expiresAt);
   database.logAudit({
     action: "auth.login_success",
-    actorName: user.fullName,
-    actorRole: user.role,
-    actorUserId: user.id,
-    actorUsername: user.username,
+    actorName: refreshedUser.fullName,
+    actorRole: refreshedUser.role,
+    actorUserId: refreshedUser.id,
+    actorUsername: refreshedUser.username,
     details: {
       expiresAt,
+      mustChangePassword: refreshedUser.mustChangePassword,
     },
     entityType: "auth",
     ipAddress: request.ip,
@@ -157,7 +192,7 @@ app.post("/api/auth/login", (request, response) => {
   );
 
   response.json({
-    ...buildSessionPayload(user),
+    ...buildSessionPayload(refreshedUser),
     expiresAt,
   });
 });
@@ -186,13 +221,75 @@ app.post("/api/auth/logout", requireAuth, (request, response) => {
   response.status(204).end();
 });
 
+app.post("/api/auth/change-password", requireAuth, (request, response) => {
+  const currentPassword = typeof request.body?.currentPassword === "string" ? request.body.currentPassword : "";
+  const newPassword = typeof request.body?.newPassword === "string" ? request.body.newPassword.trim() : "";
+  const confirmPassword = typeof request.body?.confirmPassword === "string" ? request.body.confirmPassword.trim() : "";
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    response.status(400).json({
+      message: "Joriy parol va yangi parol maydonlari majburiy.",
+    });
+    return;
+  }
+
+  if (!verifyPassword(currentPassword, request.user.passwordHash)) {
+    response.status(400).json({
+      message: "Joriy parol noto'g'ri.",
+    });
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    response.status(400).json({
+      message: "Yangi parol kamida 8 belgidan iborat bo'lishi kerak.",
+    });
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    response.status(400).json({
+      message: "Yangi parol tasdiqlash bilan mos emas.",
+    });
+    return;
+  }
+
+  if (verifyPassword(newPassword, request.user.passwordHash)) {
+    response.status(400).json({
+      message: "Yangi parol joriy parol bilan bir xil bo'lmasligi kerak.",
+    });
+    return;
+  }
+
+  const updatedUser = database.updateUserPassword(request.user.id, hashPassword(newPassword));
+  database.deleteSessionsByUserId(request.user.id);
+  database.logAudit({
+    action: "auth.password_change",
+    actorName: updatedUser.fullName,
+    actorRole: updatedUser.role,
+    actorUserId: updatedUser.id,
+    actorUsername: updatedUser.username,
+    details: {},
+    entityType: "auth",
+    ipAddress: request.ip,
+    summary: "Foydalanuvchi parolini yangiladi.",
+  });
+
+  clearAuthCookie(response);
+  response.json({
+    message: "Parol muvaffaqiyatli yangilandi. Qayta login qiling.",
+  });
+});
+
 app.use("/api", requireAuth);
+app.use("/api", requirePasswordRefresh);
 
 app.get("/api/dashboard", (request, response) => {
   const permissions = getPermissions(request.user.role);
 
   response.json({
     auditLogs: permissions.viewAudit ? database.listAuditLogs({ limit: 50 }) : [],
+    backupRuns: permissions.manageBackups ? database.listBackupRuns(10) : [],
     departments: database.listDepartments(),
     devices: database.listDevices(),
     inventoryMeta: {
@@ -201,6 +298,7 @@ app.get("/api/dashboard", (request, response) => {
     },
     overview: permissions.viewInventory ? database.getDashboardOverview() : null,
     roles: listRoles(),
+    systemMetrics: permissions.manageSettings ? database.getSystemMetrics() : null,
     user: sanitizeUser(request.user),
     users: permissions.manageUsers ? database.listUsers() : [],
   });
@@ -208,10 +306,16 @@ app.get("/api/dashboard", (request, response) => {
 
 app.get("/api/inventory", requirePermission("viewInventory"), (request, response) => {
   const filters = getInventoryFilters(request.query);
+  const stats = database.getInventoryStats(filters);
 
   response.json({
     records: database.listInventory(filters),
-    stats: database.getInventoryStats(filters),
+    stats,
+    pagination: {
+      page: filters.page,
+      pageSize: filters.pageSize,
+      totalPages: Math.max(1, Math.ceil((stats.totalRecords || 0) / filters.pageSize)),
+    },
   });
 });
 
@@ -236,6 +340,16 @@ app.post("/api/inventory", requirePermission("manageInventory"), (request, respo
   }
 
   const record = database.createInventory(payload.data, request.user.id);
+  database.createTransfer(record.id, {
+    fromDepartment: "",
+    fromHolder: payload.data.previousHolder,
+    fromStatus: "",
+    notes: "Aktiv birinchi marta ro'yxatga olindi.",
+    toDepartment: record.department,
+    toHolder: record.currentHolder,
+    toStatus: record.assetStatus,
+    transferDate: record.assignedAt || record.createdAt.slice(0, 10),
+  }, request.user.id);
 
   database.logAudit({
     action: "inventory.create",
@@ -290,6 +404,32 @@ app.put("/api/inventory/:id", requirePermission("manageInventory"), (request, re
   }
 
   const record = database.updateInventory(recordId, payload.data, request.user.id);
+  const transferNotes = [];
+
+  if (existing.currentHolder !== record.currentHolder) {
+    transferNotes.push("Mas'ul shaxs yangilandi");
+  }
+
+  if (existing.department !== record.department) {
+    transferNotes.push("Bo'lim yangilandi");
+  }
+
+  if (existing.assetStatus !== record.assetStatus) {
+    transferNotes.push(`Status ${getAssetStatusLabel(existing.assetStatus)} dan ${getAssetStatusLabel(record.assetStatus)} ga o'tdi`);
+  }
+
+  if (transferNotes.length) {
+    database.createTransfer(record.id, {
+      fromDepartment: existing.department,
+      fromHolder: existing.currentHolder,
+      fromStatus: existing.assetStatus,
+      notes: transferNotes.join(". "),
+      toDepartment: record.department,
+      toHolder: record.currentHolder,
+      toStatus: record.assetStatus,
+      transferDate: record.assignedAt || new Date().toISOString().slice(0, 10),
+    }, request.user.id);
+  }
 
   database.logAudit({
     action: "inventory.update",
@@ -367,6 +507,268 @@ app.delete("/api/inventory/:id", requirePermission("manageInventory"), (request,
   response.status(204).end();
 });
 
+app.get("/api/inventory/:id/detail", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+
+  if (!recordId) {
+    response.status(400).json({
+      message: "Yozuv identifikatori noto'g'ri.",
+    });
+    return;
+  }
+
+  const record = database.getInventoryById(recordId);
+
+  if (!record) {
+    response.status(404).json({
+      message: "Yozuv topilmadi.",
+    });
+    return;
+  }
+
+  response.json({
+    attachments: database.listAttachments(recordId),
+    qrUrl: `/api/inventory/${recordId}/qr.svg`,
+    record,
+    serviceLogs: database.listServiceLogs(recordId),
+    transfers: database.listTransfers(recordId),
+  });
+});
+
+app.get("/api/inventory/:id/qr.svg", requirePermission("viewInventory"), async (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const record = recordId ? database.getInventoryById(recordId) : null;
+
+  if (!record) {
+    response.status(404).send("Topilmadi");
+    return;
+  }
+
+  const svg = await QRCode.toString(buildQrValue(record, request), {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    type: "svg",
+    width: 320,
+  });
+
+  response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+  response.send(svg);
+});
+
+app.get("/api/inventory/:id/transfers", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+
+  if (!recordId) {
+    response.status(400).json({ message: "Yozuv identifikatori noto'g'ri." });
+    return;
+  }
+
+  response.json({
+    transfers: database.listTransfers(recordId),
+  });
+});
+
+app.get("/api/inventory/:id/service-logs", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+
+  if (!recordId) {
+    response.status(400).json({ message: "Yozuv identifikatori noto'g'ri." });
+    return;
+  }
+
+  response.json({
+    serviceLogs: database.listServiceLogs(recordId),
+  });
+});
+
+app.post("/api/inventory/:id/service-logs", requirePermission("manageService"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const payload = validateServiceLogPayload(request.body);
+
+  if (!recordId) {
+    response.status(400).json({ message: "Yozuv identifikatori noto'g'ri." });
+    return;
+  }
+
+  if (!payload.ok) {
+    response.status(400).json({ message: payload.message });
+    return;
+  }
+
+  const record = database.getInventoryById(recordId);
+
+  if (!record) {
+    response.status(404).json({ message: "Yozuv topilmadi." });
+    return;
+  }
+
+  const serviceLog = database.createServiceLog(recordId, payload.data, request.user.id);
+
+  database.logAudit({
+    action: "inventory.service_log_create",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: serviceLog,
+    entityId: recordId,
+    entityType: "inventory",
+    ipAddress: request.ip,
+    summary: `${record.deviceName} uchun servis yozuvi qo'shildi.`,
+  });
+
+  response.status(201).json({
+    serviceLog,
+  });
+});
+
+app.get("/api/inventory/:id/attachments", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+
+  if (!recordId) {
+    response.status(400).json({ message: "Yozuv identifikatori noto'g'ri." });
+    return;
+  }
+
+  response.json({
+    attachments: database.listAttachments(recordId),
+  });
+});
+
+app.post(
+  "/api/inventory/:id/attachments",
+  requirePermission("manageAttachments"),
+  attachmentUpload.single("file"),
+  (request, response) => {
+    const recordId = parsePositiveInteger(request.params.id);
+
+    if (!recordId) {
+      response.status(400).json({ message: "Yozuv identifikatori noto'g'ri." });
+      return;
+    }
+
+    if (!request.file?.buffer) {
+      response.status(400).json({ message: "Attachment fayli tanlanmadi." });
+      return;
+    }
+
+    const record = database.getInventoryById(recordId);
+
+    if (!record) {
+      response.status(404).json({ message: "Yozuv topilmadi." });
+      return;
+    }
+
+    const safeOriginalName = sanitizeFileName(request.file.originalname || "attachment.bin");
+    const storedName = `${Date.now()}-${crypto.randomUUID()}-${safeOriginalName}`;
+    const recordDir = path.join(config.attachmentsDir, String(recordId));
+    const filePath = path.join(recordDir, storedName);
+
+    fs.mkdirSync(recordDir, { recursive: true });
+    fs.writeFileSync(filePath, request.file.buffer);
+
+    const attachment = database.createAttachment(
+      recordId,
+      {
+        fileName: safeOriginalName,
+        filePath,
+        fileSize: request.file.size || request.file.buffer.length,
+        mimeType: request.file.mimetype || "application/octet-stream",
+        storedName,
+      },
+      request.user.id
+    );
+
+    database.logAudit({
+      action: "inventory.attachment_create",
+      actorName: request.user.fullName,
+      actorRole: request.user.role,
+      actorUserId: request.user.id,
+      actorUsername: request.user.username,
+      details: {
+        fileName: attachment.fileName,
+        fileSize: attachment.fileSize,
+      },
+      entityId: recordId,
+      entityType: "inventory",
+      ipAddress: request.ip,
+      summary: `${record.deviceName} uchun attachment yuklandi.`,
+    });
+
+    response.status(201).json({
+      attachment,
+    });
+  }
+);
+
+app.get("/api/inventory/:id/attachments/:attachmentId/download", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const attachmentId = parsePositiveInteger(request.params.attachmentId);
+  const attachment = attachmentId ? database.getAttachmentById(attachmentId) : null;
+
+  if (!recordId || !attachmentId || !attachment || attachment.inventoryRecordId !== recordId) {
+    response.status(404).json({ message: "Attachment topilmadi." });
+    return;
+  }
+
+  response.download(attachment.filePath, attachment.fileName);
+});
+
+app.delete("/api/inventory/:id/attachments/:attachmentId", requirePermission("manageAttachments"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const attachmentId = parsePositiveInteger(request.params.attachmentId);
+  const attachment = attachmentId ? database.getAttachmentById(attachmentId) : null;
+
+  if (!recordId || !attachmentId || !attachment || attachment.inventoryRecordId !== recordId) {
+    response.status(404).json({ message: "Attachment topilmadi." });
+    return;
+  }
+
+  const deletedAttachment = database.removeAttachment(attachmentId);
+
+  if (deletedAttachment?.filePath && fs.existsSync(deletedAttachment.filePath)) {
+    fs.unlinkSync(deletedAttachment.filePath);
+  }
+
+  response.status(204).end();
+});
+
+app.post(
+  "/api/inventory/import-preview",
+  requirePermission("importInventory"),
+  importUpload.single("file"),
+  async (request, response) => {
+    if (!request.file?.buffer) {
+      response.status(400).json({
+        message: "Import uchun Excel fayl tanlanmadi.",
+      });
+      return;
+    }
+
+    const rows = await parseInventoryWorkbook(request.file.buffer);
+    const normalizedRows = [];
+    const errors = [];
+
+    rows.forEach((row) => {
+      const validation = validateImportedInventoryRow(row);
+
+      if (!validation.ok) {
+        errors.push(`${row.rowNumber}-qator: ${validation.message}`);
+        return;
+      }
+
+      normalizedRows.push(validation.data);
+    });
+
+    response.json({
+      errors,
+      previewRows: normalizedRows.slice(0, 20),
+      totalRows: rows.length,
+      validRows: normalizedRows.length,
+    });
+  }
+);
+
 app.get("/api/inventory/export/csv", requirePermission("exportInventory"), (request, response) => {
   const filters = getInventoryFilters(request.query);
   const records = database.listInventory(filters);
@@ -408,7 +810,7 @@ app.get("/api/inventory/template", requirePermission("importInventory"), async (
 app.post(
   "/api/inventory/import",
   requirePermission("importInventory"),
-  upload.single("file"),
+  importUpload.single("file"),
   async (request, response) => {
     if (!request.file?.buffer) {
       response.status(400).json({
@@ -457,6 +859,124 @@ app.post(
 
     response.status(201).json({
       result,
+    });
+  }
+);
+
+app.get("/api/global-search", requirePermission("viewInventory"), (request, response) => {
+  const query = normalizeText(request.query.query, 120);
+
+  response.json({
+    results: database.searchGlobal(query),
+  });
+});
+
+app.get("/api/reports/summary", requirePermission("viewReports"), (request, response) => {
+  const summary = {
+    generatedAt: new Date().toISOString(),
+    overview: database.getDashboardOverview(),
+    metrics: database.getSystemMetrics(),
+  };
+
+  if (String(request.query.format || "").toLowerCase() === "html") {
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.send(buildPrintableReport(summary));
+    return;
+  }
+
+  response.json(summary);
+});
+
+app.get("/api/system/metrics", requirePermission("manageSettings"), (request, response) => {
+  response.json({
+    backups: database.listBackupRuns(20),
+    metrics: database.getSystemMetrics(),
+  });
+});
+
+app.get("/api/system/backup", requirePermission("manageBackups"), (request, response) => {
+  const payload = database.exportBackupPayload();
+  payload.files = payload.data.attachments.map((attachment) => ({
+    fileName: attachment.file_name,
+    filePath: attachment.file_path,
+    id: attachment.id,
+    mimeType: attachment.mime_type,
+    storedName: attachment.stored_name,
+    contentBase64: attachment.file_path && fs.existsSync(attachment.file_path)
+      ? fs.readFileSync(attachment.file_path).toString("base64")
+      : "",
+  }));
+
+  const fileName = `inventory-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+  const backupPath = path.join(config.backupsDir, fileName);
+  fs.writeFileSync(backupPath, JSON.stringify(payload, null, 2), "utf8");
+  database.createBackupRun(fileName, "JSON backup yaratildi.", request.user.id);
+
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  response.send(JSON.stringify(payload, null, 2));
+});
+
+app.post(
+  "/api/system/restore",
+  requirePermission("manageBackups"),
+  restoreUpload.single("file"),
+  (request, response) => {
+    if (!request.file?.buffer) {
+      response.status(400).json({
+        message: "Restore uchun backup fayli tanlanmadi.",
+      });
+      return;
+    }
+
+    let payload;
+
+    try {
+      payload = JSON.parse(request.file.buffer.toString("utf8"));
+    } catch (_error) {
+      response.status(400).json({
+        message: "Backup fayl JSON formatda o'qilmadi.",
+      });
+      return;
+    }
+
+    if (!payload?.data?.users || !payload?.data?.inventoryRecords) {
+      response.status(400).json({
+        message: "Backup tarkibi noto'g'ri yoki to'liq emas.",
+      });
+      return;
+    }
+
+    clearDirectory(config.attachmentsDir);
+
+    (payload.files || []).forEach((file) => {
+      if (!file?.contentBase64 || !file?.filePath) {
+        return;
+      }
+
+      const targetPath = String(file.filePath).replace(/^.*?data[\\/]+attachments/i, config.attachmentsDir);
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.writeFileSync(targetPath, Buffer.from(file.contentBase64, "base64"));
+    });
+
+    database.restoreBackupPayload(payload);
+    database.logAudit({
+      action: "system.restore",
+      actorName: request.user.fullName,
+      actorRole: request.user.role,
+      actorUserId: request.user.id,
+      actorUsername: request.user.username,
+      details: {
+        backupVersion: payload.backupVersion || 1,
+      },
+      entityType: "system",
+      ipAddress: request.ip,
+      summary: "Tizim backup orqali tiklandi.",
+    });
+
+    clearAuthCookie(response);
+    response.json({
+      message: "Backup muvaffaqiyatli tiklandi. Qayta login qiling.",
     });
   }
 );
@@ -989,6 +1509,7 @@ function clearAuthCookie(response) {
 
 function buildSessionPayload(user) {
   return {
+    mustChangePassword: Boolean(user.mustChangePassword),
     permissions: getPermissions(user.role),
     roles: listRoles(),
     user: sanitizeUser(user),
@@ -1000,6 +1521,8 @@ function sanitizeUser(user) {
     fullName: user.fullName,
     id: user.id,
     isActive: Boolean(user.isActive),
+    lastLoginAt: user.lastLoginAt || "",
+    mustChangePassword: Boolean(user.mustChangePassword),
     role: user.role,
     username: user.username,
   };
@@ -1017,9 +1540,13 @@ function validateInventoryPayload(body) {
   const assetStatus = normalizeAssetStatus(body?.assetStatus);
   const conditionStatus = normalizeConditionStatus(body?.conditionStatus);
   const purchaseDate = parseDateInput(body?.purchaseDate);
+  const purchasePrice = parseCurrencyValue(body?.purchasePrice);
   const assignedAt = parseDateInput(body?.assignedAt);
   const warrantyUntil = parseDateInput(body?.warrantyUntil);
   const supplier = normalizeText(body?.supplier, 120);
+  const branch = normalizeText(body?.branch, 120);
+  const room = normalizeText(body?.room, 60);
+  const desk = normalizeText(body?.desk, 60);
   const officeLocation = normalizeText(body?.officeLocation, 120);
   const accessories = normalizeText(body?.accessories, 240);
   const notes = normalizeText(body?.notes, 500);
@@ -1052,6 +1579,13 @@ function validateInventoryPayload(body) {
     };
   }
 
+  if (body?.purchasePrice && purchasePrice == null) {
+    return {
+      message: "Sotib olish narxi noto'g'ri formatda.",
+      ok: false,
+    };
+  }
+
   if (body?.assignedAt && !assignedAt) {
     return {
       message: "Biriktirilgan sana formati noto'g'ri.",
@@ -1072,8 +1606,10 @@ function validateInventoryPayload(body) {
       assetStatus,
       assetTag,
       assignedAt,
+      branch,
       conditionStatus,
       currentHolder,
+      desk,
       departmentId,
       deviceId,
       firstName,
@@ -1082,6 +1618,8 @@ function validateInventoryPayload(body) {
       officeLocation,
       previousHolder,
       purchaseDate,
+      purchasePrice: purchasePrice || 0,
+      room,
       serialNumber,
       supplier,
       warrantyUntil,
@@ -1102,9 +1640,13 @@ function validateImportedInventoryRow(row) {
   const assetStatus = normalizeAssetStatus(row?.assetStatus);
   const conditionStatus = normalizeConditionStatus(row?.conditionStatus);
   const purchaseDate = parseDateInput(row?.purchaseDate);
+  const purchasePrice = parseCurrencyValue(row?.purchasePrice);
   const assignedAt = parseDateInput(row?.assignedAt);
   const warrantyUntil = parseDateInput(row?.warrantyUntil);
   const supplier = normalizeText(row?.supplier, 120);
+  const branch = normalizeText(row?.branch, 120);
+  const room = normalizeText(row?.room, 60);
+  const desk = normalizeText(row?.desk, 60);
   const officeLocation = normalizeText(row?.officeLocation, 120);
   const accessories = normalizeText(row?.accessories, 240);
   const notes = normalizeText(row?.notes, 500);
@@ -1137,6 +1679,13 @@ function validateImportedInventoryRow(row) {
     };
   }
 
+  if (row?.purchasePrice && purchasePrice == null) {
+    return {
+      message: "sotib olish narxi noto'g'ri.",
+      ok: false,
+    };
+  }
+
   if (row?.assignedAt && !assignedAt) {
     return {
       message: "biriktirilgan sana formati noto'g'ri.",
@@ -1157,8 +1706,10 @@ function validateImportedInventoryRow(row) {
       assetStatus,
       assetTag,
       assignedAt,
+      branch,
       conditionStatus,
       currentHolder,
+      desk,
       department,
       deviceName,
       firstName,
@@ -1167,9 +1718,37 @@ function validateImportedInventoryRow(row) {
       officeLocation,
       previousHolder,
       purchaseDate,
+      purchasePrice: purchasePrice || 0,
+      room,
       serialNumber,
       supplier,
       warrantyUntil,
+    },
+    ok: true,
+  };
+}
+
+function validateServiceLogPayload(body) {
+  const serviceDate = parseDateInput(body?.serviceDate);
+  const serviceType = normalizeText(body?.serviceType, 80);
+  const vendor = normalizeText(body?.vendor, 120);
+  const cost = parseCurrencyValue(body?.cost) || 0;
+  const notes = normalizeText(body?.notes, 400);
+
+  if (!serviceDate || !serviceType) {
+    return {
+      message: "Servis sanasi va turi majburiy.",
+      ok: false,
+    };
+  }
+
+  return {
+    data: {
+      cost,
+      notes,
+      serviceDate,
+      serviceType,
+      vendor,
     },
     ok: true,
   };
@@ -1231,6 +1810,7 @@ function validateUserPayload(body, options) {
   const password = typeof body?.password === "string" ? body.password.trim() : "";
   const role = normalizeText(body?.role, 30);
   const isActive = parseBoolean(body?.isActive, true);
+  const mustChangePassword = parseBoolean(body?.mustChangePassword, false);
 
   if (!fullName || !username || !role) {
     return {
@@ -1264,6 +1844,7 @@ function validateUserPayload(body, options) {
     data: {
       fullName,
       isActive,
+      mustChangePassword,
       password,
       role,
       username,
@@ -1278,7 +1859,11 @@ function getInventoryFilters(query) {
     conditionStatus: normalizeText(query.conditionStatus, 40),
     departmentId: parsePositiveInteger(query.departmentId),
     deviceId: parsePositiveInteger(query.deviceId),
+    page: parsePositiveInteger(query.page) || 1,
+    pageSize: parsePositiveInteger(query.pageSize) || 25,
     search: normalizeText(query.search, 120),
+    sortBy: normalizeText(query.sortBy, 40),
+    sortDir: normalizeText(query.sortDir, 10),
   };
 }
 
@@ -1331,6 +1916,16 @@ function parseDateInput(value) {
   return normalized;
 }
 
+function parseCurrencyValue(value) {
+  if (value == null || value === "") {
+    return 0;
+  }
+
+  const normalized = String(value).replace(/,/g, ".").replace(/[^\d.-]/g, "");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : null;
+}
+
 function createCsv(records) {
   const headers = [
     "Ism",
@@ -1342,9 +1937,13 @@ function createCsv(records) {
     "Status",
     "Holati",
     "Sotib olingan sana",
+    "Sotib olish narxi",
     "Biriktirilgan sana",
     "Kafolat muddati",
     "Yetkazib beruvchi",
+    "Filial",
+    "Xona",
+    "Stol",
     "Joylashuv",
     "Qo'shimcha texnikalar",
     "Izoh",
@@ -1364,9 +1963,13 @@ function createCsv(records) {
     getAssetStatusLabel(record.assetStatus),
     getConditionStatusLabel(record.conditionStatus),
     record.purchaseDate,
+    record.purchasePrice,
     record.assignedAt,
     record.warrantyUntil,
     record.supplier,
+    record.branch,
+    record.room,
+    record.desk,
     record.officeLocation,
     record.accessories,
     record.notes,
@@ -1394,6 +1997,95 @@ function formatDate(value) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function requirePasswordRefresh(request, response, next) {
+  if (!request.user.mustChangePassword) {
+    next();
+    return;
+  }
+
+  response.status(403).json({
+    code: "PASSWORD_CHANGE_REQUIRED",
+    message: "Avval parolni yangilang.",
+  });
+}
+
+function sanitizeFileName(value) {
+  return String(value || "file")
+    .replace(/[^\w.\-]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 120);
+}
+
+function buildQrValue(record, request) {
+  const baseUrl = config.appBaseUrl || `${request.protocol}://${request.get("host")}`;
+
+  return `${baseUrl}/?assetTag=${encodeURIComponent(record.assetTag || record.deviceName)}&recordId=${record.id}`;
+}
+
+function buildPrintableReport(summary) {
+  const stats = summary.overview?.stats || {};
+  const rows = [
+    ["Jami aktivlar", stats.totalRecords || 0],
+    ["Ishlatilmoqda", stats.inUseCount || 0],
+    ["Zaxirada", stats.inStockCount || 0],
+    ["Ta'mirda", stats.repairCount || 0],
+    ["Kafolat yaqin", stats.warrantyExpiringCount || 0],
+    ["Qo'shimcha texnikali", stats.accessoryCount || 0],
+  ]
+    .map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(String(value))}</td></tr>`)
+    .join("");
+
+  return `<!doctype html>
+  <html lang="uz">
+  <head>
+    <meta charset="utf-8">
+    <title>Inventory Report</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+      h1 { margin-bottom: 8px; }
+      table { border-collapse: collapse; width: 100%; max-width: 760px; }
+      td, th { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+      th { background: #eff6ff; }
+      .meta { color: #64748b; margin-bottom: 20px; }
+    </style>
+  </head>
+  <body>
+    <h1>Inventar Hisobot</h1>
+    <p class="meta">Yaratilgan vaqt: ${escapeHtml(summary.generatedAt)}</p>
+    <table>
+      <thead><tr><th>Ko'rsatkich</th><th>Qiymat</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </body>
+  </html>`;
+}
+
+function clearDirectory(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    fs.mkdirSync(targetPath, { recursive: true });
+    return;
+  }
+
+  fs.readdirSync(targetPath).forEach((entry) => {
+    const fullPath = path.join(targetPath, entry);
+    const stat = fs.statSync(fullPath);
+
+    if (stat.isDirectory()) {
+      fs.rmSync(fullPath, { force: true, recursive: true });
+    } else {
+      fs.unlinkSync(fullPath);
+    }
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function shutdown() {

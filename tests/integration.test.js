@@ -26,6 +26,7 @@ test.before(async () => {
       ADMIN_PASSWORD: "Admin123!",
       ADMIN_USERNAME: "admin",
       DATABASE_PATH: databasePath,
+      FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE: "false",
       PORT: String(PORT),
     },
     stdio: "ignore",
@@ -309,6 +310,75 @@ test("excel import works and logout clears session", { concurrency: false }, asy
 
   const session = await admin.request("/api/session");
   assert.equal(session.response.status, 401);
+});
+
+test("must change password flow blocks dashboard until password is updated", { concurrency: false }, async () => {
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const createdUser = await admin.request("/api/users", {
+    body: {
+      fullName: "Forced Password User",
+      isActive: true,
+      mustChangePassword: true,
+      password: "Force123!",
+      role: "manager",
+      username: "forced-user",
+    },
+    method: "POST",
+  });
+
+  assert.equal(createdUser.response.status, 201);
+  assert.equal(createdUser.payload.user.mustChangePassword, true);
+
+  const userClient = createClient();
+  const login = await userClient.request("/api/auth/login", {
+    body: {
+      password: "Force123!",
+      username: "forced-user",
+    },
+    method: "POST",
+  });
+
+  assert.equal(login.response.status, 200);
+  assert.equal(login.payload.user.mustChangePassword, true);
+
+  const blockedDashboard = await userClient.request("/api/dashboard");
+  assert.equal(blockedDashboard.response.status, 403);
+
+  const passwordChange = await userClient.request("/api/auth/change-password", {
+    body: {
+      confirmPassword: "Force1234!",
+      currentPassword: "Force123!",
+      newPassword: "Force1234!",
+    },
+    method: "POST",
+  });
+
+  assert.equal(passwordChange.response.status, 200);
+
+  const staleSession = await userClient.request("/api/session");
+  assert.equal(staleSession.response.status, 401);
+
+  const relogin = await userClient.request("/api/auth/login", {
+    body: {
+      password: "Force1234!",
+      username: "forced-user",
+    },
+    method: "POST",
+  });
+
+  assert.equal(relogin.response.status, 200);
+  assert.equal(relogin.payload.user.mustChangePassword, false);
+
+  const dashboard = await userClient.request("/api/dashboard");
+  assert.equal(dashboard.response.status, 200);
 });
 
 function createClient() {

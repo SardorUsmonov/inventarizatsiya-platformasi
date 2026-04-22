@@ -14,6 +14,7 @@ if (!baseUrl || !username || !password) {
 await assertStatus("/", 200, "Asosiy sahifa");
 await assertStatus("/styles.css", 200, "Styles fayli");
 await assertStatus("/app.js", 200, "JavaScript fayli");
+await assertStatus("/enhancements.js", 200, "Enhancements fayli");
 
 const health = await request("/api/health");
 
@@ -73,6 +74,7 @@ console.log(
         "home",
         "styles",
         "app",
+        "enhancements",
         "health",
         "login",
         "session",
