@@ -73,6 +73,16 @@ const tableSummary = document.querySelector("#tableSummary");
 const totalRecordsElement = document.querySelector("#totalRecords");
 const totalDepartmentsElement = document.querySelector("#totalDepartments");
 const activeDevicesElement = document.querySelector("#activeDevices");
+const heroStatusChartElement = document.querySelector("#heroStatusChart");
+const heroStatusLegendElement = document.querySelector("#heroStatusLegend");
+const heroChartSummaryElement = document.querySelector("#heroChartSummary");
+const heroDepartmentMeterElement = document.querySelector("#heroDepartmentMeter");
+const heroDepartmentSummaryElement = document.querySelector("#heroDepartmentSummary");
+const heroActiveMeterElement = document.querySelector("#heroActiveMeter");
+const heroActiveSummaryElement = document.querySelector("#heroActiveSummary");
+const heroAttentionCountElement = document.querySelector("#heroAttentionCount");
+const heroAttentionMeterElement = document.querySelector("#heroAttentionMeter");
+const heroAttentionSummaryElement = document.querySelector("#heroAttentionSummary");
 const dashboardInUseCountElement = document.querySelector("#dashboardInUseCount");
 const dashboardInStockCountElement = document.querySelector("#dashboardInStockCount");
 const dashboardRepairCountElement = document.querySelector("#dashboardRepairCount");
@@ -820,15 +830,13 @@ function renderInventory(records, stats) {
 
   emptyState.style.display = records.length ? "none" : "block";
   emptyStateText.textContent = searchInput.value.trim() ? "Filter bo'yicha mos yozuv topilmadi." : "Hali birorta inventar yozuvi mavjud emas.";
-  totalRecordsElement.textContent = stats.totalRecords || 0;
-  totalDepartmentsElement.textContent = stats.totalDepartments || 0;
-  activeDevicesElement.textContent = stats.activeDevices || 0;
   tableSummary.textContent = `${stats.totalRecords || 0} ta yozuv. ${stats.inUseCount || 0} ishlatilmoqda, ${stats.repairCount || 0} ta'mirda, ${stats.warrantyExpiringCount || 0} kafolat muddatiga yaqin.`;
 }
 
 function renderDashboard(overview) {
   const stats = overview?.stats || {};
 
+  renderHeroVisualization(stats, overview);
   dashboardInUseCountElement.textContent = stats.inUseCount || 0;
   dashboardInStockCountElement.textContent = stats.inStockCount || 0;
   dashboardRepairCountElement.textContent = stats.repairCount || 0;
@@ -863,6 +871,186 @@ function renderDashboard(overview) {
     appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
     appendCell(row, "Yangilangan", formatDate(record.updatedAt));
   });
+}
+
+function renderHeroVisualization(stats, overview) {
+  const totalRecords = Number(stats.totalRecords) || 0;
+  const totalDepartments = Number(stats.totalDepartments) || 0;
+  const activeDevices = Number(stats.activeDevices) || 0;
+  const attentionCount = Number(stats.attentionCount) || 0;
+  const warrantyExpiringCount = Number(stats.warrantyExpiringCount) || 0;
+  const repairCount = Number(stats.repairCount) || 0;
+  const primaryDepartment = overview?.byDepartment?.[0] || null;
+  const statusItems = buildHeroStatusItems(overview?.byStatus || [], totalRecords);
+
+  totalRecordsElement.textContent = totalRecords;
+  totalDepartmentsElement.textContent = totalDepartments;
+  activeDevicesElement.textContent = activeDevices;
+  heroAttentionCountElement.textContent = attentionCount;
+
+  heroStatusChartElement.classList.toggle("is-empty", !statusItems.length);
+  heroStatusChartElement.style.setProperty("--chart-fill", buildHeroStatusGradient(statusItems, totalRecords));
+  heroStatusChartElement.setAttribute("aria-label", getHeroChartAriaLabel(statusItems, totalRecords));
+  heroChartSummaryElement.textContent = buildHeroChartSummary(statusItems, totalRecords);
+  renderHeroStatusLegend(statusItems, totalRecords);
+
+  setHeroMeter(heroDepartmentMeterElement, totalRecords ? ((primaryDepartment?.total || 0) / totalRecords) * 100 : 0);
+  heroDepartmentSummaryElement.textContent = totalDepartments
+    ? `${localizeDepartmentName(primaryDepartment?.label || "Bo'lim kiritilmagan")} ${primaryDepartment?.total || 0} ta aktiv bilan yetakchi.`
+    : "Aktiv katalog segmentlari hali shakllanmagan.";
+
+  setHeroMeter(heroActiveMeterElement, totalRecords ? (activeDevices / totalRecords) * 100 : 0);
+  heroActiveSummaryElement.textContent = totalRecords
+    ? `${formatPercent(activeDevices, totalRecords)} aktiv hozir foydalanishda.`
+    : "Biriktirishga tayyor qurilmalar shu yerda ko'rinadi.";
+
+  setHeroMeter(heroAttentionMeterElement, totalRecords ? (attentionCount / totalRecords) * 100 : 0);
+  heroAttentionSummaryElement.textContent = attentionCount
+    ? `${repairCount} ta ta'mirda, ${warrantyExpiringCount} ta kafolat nazoratida.`
+    : "Ta'mir va kafolat bo'yicha xavfli holat aniqlanmadi.";
+}
+
+function buildHeroStatusItems(items, totalRecords) {
+  if (!totalRecords) {
+    return [];
+  }
+
+  const totalsByValue = new Map(
+    items.map((item) => [item.value || item.label || "", Number(item.total) || 0])
+  );
+  const knownStatuses = state.assetStatuses.length
+    ? state.assetStatuses
+    : items.map((item) => ({
+        value: item.value || item.label || "",
+        label: getAssetStatusLabel(item.value || item.label || ""),
+      }));
+
+  return knownStatuses
+    .map((status) => {
+      const total = totalsByValue.get(status.value) || 0;
+
+      return {
+        color: getAssetStatusColor(status.value),
+        label: status.label,
+        total,
+        value: status.value,
+      };
+    })
+    .filter((item) => item.total > 0)
+    .sort((left, right) => right.total - left.total);
+}
+
+function buildHeroStatusGradient(items, totalRecords) {
+  if (!items.length || !totalRecords) {
+    return "conic-gradient(from -90deg, rgba(148, 163, 184, 0.22) 0deg 360deg)";
+  }
+
+  let currentAngle = 0;
+
+  const segments = items.map((item, index) => {
+    const start = currentAngle;
+    const nextAngle = index === items.length - 1 ? 360 : currentAngle + (item.total / totalRecords) * 360;
+    currentAngle = nextAngle;
+    return `${item.color} ${start}deg ${nextAngle}deg`;
+  });
+
+  return `conic-gradient(from -90deg, ${segments.join(", ")})`;
+}
+
+function getHeroChartAriaLabel(items, totalRecords) {
+  if (!items.length || !totalRecords) {
+    return "Aktivlar holati diagrammasi: hozircha ma'lumot mavjud emas.";
+  }
+
+  return `Aktivlar holati diagrammasi: ${items
+    .map((item) => `${item.label} ${item.total} ta, ${formatPercent(item.total, totalRecords)}`)
+    .join("; ")}.`;
+}
+
+function buildHeroChartSummary(items, totalRecords) {
+  if (!items.length || !totalRecords) {
+    return "Ma'lumot kiritilganda holatlar ulushi shu yerda ko'rinadi.";
+  }
+
+  const leader = items[0];
+  const follower = items[1];
+
+  if (!follower) {
+    return `${leader.label} ${leader.total} ta yozuv bilan asosiy holat bo'lib turibdi.`;
+  }
+
+  return `${leader.label} ${leader.total} ta (${formatPercent(leader.total, totalRecords)}) bilan yetakchi, undan keyin ${follower.label} ${follower.total} ta.`;
+}
+
+function renderHeroStatusLegend(items, totalRecords) {
+  heroStatusLegendElement.innerHTML = "";
+
+  if (!items.length || !totalRecords) {
+    const empty = document.createElement("p");
+    empty.className = "hero-legend__empty";
+    empty.textContent = "Hozircha diagramma uchun ma'lumot mavjud emas.";
+    heroStatusLegendElement.appendChild(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const share = (item.total / totalRecords) * 100;
+    const legendItem = document.createElement("div");
+    legendItem.className = "hero-legend__item";
+    legendItem.style.setProperty("--legend-color", item.color);
+
+    const head = document.createElement("div");
+    head.className = "hero-legend__head";
+
+    const swatch = document.createElement("span");
+    swatch.className = "hero-legend__swatch";
+    swatch.setAttribute("aria-hidden", "true");
+
+    const label = document.createElement("span");
+    label.className = "hero-legend__label";
+    label.textContent = item.label;
+
+    const total = document.createElement("strong");
+    total.className = "hero-legend__total";
+    total.textContent = item.total;
+
+    const foot = document.createElement("div");
+    foot.className = "hero-legend__foot";
+
+    const track = document.createElement("div");
+    track.className = "hero-legend__track";
+
+    const bar = document.createElement("span");
+    bar.className = "hero-legend__bar";
+    bar.style.width = `${Math.max(share > 0 ? 8 : 0, Math.round(share))}%`;
+
+    const percent = document.createElement("span");
+    percent.className = "hero-legend__percent";
+    percent.textContent = formatPercent(item.total, totalRecords);
+
+    head.append(swatch, label, total);
+    track.appendChild(bar);
+    foot.append(track, percent);
+    legendItem.append(head, foot);
+    heroStatusLegendElement.appendChild(legendItem);
+  });
+}
+
+function setHeroMeter(element, percent) {
+  if (!element) {
+    return;
+  }
+
+  const normalized = Math.max(0, Math.min(100, Math.round(percent || 0)));
+  element.style.width = `${normalized}%`;
+}
+
+function formatPercent(value, total) {
+  if (!total) {
+    return "0%";
+  }
+
+  return `${Math.round((Number(value) / Number(total)) * 100)}%`;
 }
 
 function renderBreakdownList(container, items, labelFormatter) {
@@ -1770,6 +1958,21 @@ function getAssetStatusClass(value) {
       return "tag--info";
     default:
       return "";
+  }
+}
+
+function getAssetStatusColor(value) {
+  switch (value) {
+    case "in_stock":
+      return "#10b981";
+    case "repair":
+      return "#f59e0b";
+    case "reserved":
+      return "#06b6d4";
+    case "retired":
+      return "#64748b";
+    default:
+      return "#2563eb";
   }
 }
 

@@ -152,21 +152,72 @@
             </div>
 
             <div class="hero__stats">
-              <article class="stat-card">
-                <span class="stat-card__label">Yozuvlar</span>
-                <strong class="stat-card__value" id="totalRecords">0</strong>
-                <span class="stat-card__hint">Barcha inventar pozitsiyalari</span>
-              </article>
-              <article class="stat-card">
-                <span class="stat-card__label">Bo'limlar</span>
-                <strong class="stat-card__value" id="totalDepartments">0</strong>
-                <span class="stat-card__hint">Aktiv katalog segmentlari</span>
-              </article>
-              <article class="stat-card">
-                <span class="stat-card__label">Aktiv texnikalar</span>
-                <strong class="stat-card__value" id="activeDevices">0</strong>
-                <span class="stat-card__hint">Biriktirishga tayyor qurilmalar</span>
-              </article>
+              <section class="hero-visual" aria-labelledby="heroVisualTitle">
+                <div class="hero-visual__header">
+                  <p class="hero-visual__eyebrow">Jonli vizual ko'rinish</p>
+                  <h2 id="heroVisualTitle">Aktivlar holati charti</h2>
+                  <p class="hero-visual__text">
+                    Yangi yozuvlar kiritilgani sari holatlar ulushi va asosiy ko'rsatkichlar shu yerda avtomatik
+                    yangilanadi.
+                  </p>
+                </div>
+
+                <div class="hero-visual__body">
+                  <div
+                    class="hero-chart is-empty"
+                    id="heroStatusChart"
+                    role="img"
+                    aria-label="Aktivlar holati diagrammasi"
+                  >
+                    <div class="hero-chart__inner">
+                      <span class="hero-chart__caption">Jami yozuvlar</span>
+                      <strong class="hero-chart__value" id="totalRecords">0</strong>
+                      <span class="hero-chart__meta" id="heroChartSummary">
+                        Ma'lumot kiritilganda holatlar ulushi shu yerda ko'rinadi.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="hero-legend" id="heroStatusLegend">
+                    <p class="hero-legend__empty">Hozircha diagramma uchun ma'lumot mavjud emas.</p>
+                  </div>
+                </div>
+
+                <div class="hero-metrics">
+                  <article class="hero-metric-card">
+                    <div class="hero-metric-card__top">
+                      <span class="hero-metric-card__label">Bo'limlar</span>
+                      <strong class="hero-metric-card__value" id="totalDepartments">0</strong>
+                    </div>
+                    <div class="hero-metric-card__meter">
+                      <span id="heroDepartmentMeter"></span>
+                    </div>
+                    <p class="hero-metric-card__hint" id="heroDepartmentSummary">Aktiv katalog segmentlari</p>
+                  </article>
+
+                  <article class="hero-metric-card">
+                    <div class="hero-metric-card__top">
+                      <span class="hero-metric-card__label">Aktiv texnikalar</span>
+                      <strong class="hero-metric-card__value" id="activeDevices">0</strong>
+                    </div>
+                    <div class="hero-metric-card__meter">
+                      <span id="heroActiveMeter"></span>
+                    </div>
+                    <p class="hero-metric-card__hint" id="heroActiveSummary">Biriktirishga tayyor qurilmalar</p>
+                  </article>
+
+                  <article class="hero-metric-card">
+                    <div class="hero-metric-card__top">
+                      <span class="hero-metric-card__label">Riskdagi aktivlar</span>
+                      <strong class="hero-metric-card__value" id="heroAttentionCount">0</strong>
+                    </div>
+                    <div class="hero-metric-card__meter">
+                      <span id="heroAttentionMeter"></span>
+                    </div>
+                    <p class="hero-metric-card__hint" id="heroAttentionSummary">Ta'mir va kafolat xavflari shu yerda ko'rinadi</p>
+                  </article>
+                </div>
+              </section>
             </div>
           </header>
 

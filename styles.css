@@ -714,25 +714,242 @@ body[data-theme="dark"] .search-results {
 }
 
 .hero__stats {
+  display: block;
+}
+
+.hero-visual {
   display: grid;
-  gap: 14px;
+  gap: 18px;
+  height: 100%;
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 34%),
+    linear-gradient(180deg, var(--card-gradient-start), var(--card-gradient-soft-end));
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-card {
+body[data-theme="dark"] .hero-visual {
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.24), transparent 36%),
+    linear-gradient(180deg, rgba(18, 31, 54, 0.96), rgba(12, 22, 39, 0.92));
+}
+
+.hero-visual__header {
   display: grid;
-  gap: 4px;
-  padding: 18px 20px;
+  gap: 10px;
 }
 
-.stat-card__value {
-  font-size: clamp(30px, 4vw, 42px);
-  line-height: 1;
+.hero-visual__eyebrow {
+  margin: 0;
+  color: var(--brand-dark);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.stat-card__hint {
+.hero-visual__header h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.hero-visual__text,
+.hero-chart__meta,
+.hero-metric-card__hint {
+  margin: 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.hero-visual__body {
+  display: grid;
+  gap: 16px;
+}
+
+.hero-chart {
+  --chart-fill: conic-gradient(from -90deg, rgba(148, 163, 184, 0.22) 0deg 360deg);
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 254px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.12), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+  overflow: hidden;
+}
+
+.hero-chart::before,
+.hero-chart::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+
+.hero-chart::before {
+  width: clamp(190px, 30vw, 224px);
+  height: clamp(190px, 30vw, 224px);
+  background: var(--chart-fill);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.hero-chart::after {
+  width: clamp(126px, 20vw, 154px);
+  height: clamp(126px, 20vw, 154px);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, var(--panel-gradient-start), var(--panel-gradient-end)),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.hero-chart.is-empty::before {
+  filter: saturate(0.7);
+  opacity: 0.82;
+}
+
+.hero-chart__inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+  max-width: 180px;
+  text-align: center;
+}
+
+.hero-chart__caption,
+.hero-metric-card__label {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-chart__value {
+  font-size: clamp(40px, 5vw, 54px);
+  line-height: 0.95;
+}
+
+.hero-legend {
+  display: grid;
+  gap: 10px;
+}
+
+.hero-legend__item {
+  --legend-color: var(--brand);
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--ghost-bg);
+}
+
+.hero-legend__head,
+.hero-legend__foot {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-legend__head {
+  grid-template-columns: auto 1fr auto;
+}
+
+.hero-legend__foot {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.hero-legend__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--legend-color);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--legend-color) 18%, transparent);
+}
+
+.hero-legend__label,
+.hero-legend__percent,
+.hero-legend__empty {
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.hero-legend__total {
+  font-size: 15px;
+}
+
+.hero-legend__track,
+.hero-metric-card__meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted-soft);
+  overflow: hidden;
+}
+
+.hero-legend__bar,
+.hero-metric-card__meter span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+}
+
+.hero-legend__bar {
+  background: var(--legend-color);
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hero-metric-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--card-gradient-start), var(--card-gradient-end));
+  box-shadow: var(--shadow-sm);
+}
+
+.hero-metric-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.hero-metric-card__value {
+  font-size: clamp(28px, 4vw, 34px);
+  line-height: 0.95;
+}
+
+.hero-metric-card:nth-child(1) .hero-metric-card__meter span {
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.hero-metric-card:nth-child(2) .hero-metric-card__meter span {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.hero-metric-card:nth-child(3) .hero-metric-card__meter span {
+  background: linear-gradient(90deg, #f59e0b, #fb7185);
+}
+
+.hero-metric-card__hint {
+  min-height: 40px;
 }
 
 .status-banner {
@@ -1477,8 +1694,8 @@ tbody tr:last-child td {
     max-width: none;
   }
 
-  .hero__stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .hero-visual {
+    padding: 20px;
   }
 
   .dashboard-cards {
@@ -1519,11 +1736,18 @@ tbody tr:last-child td {
   }
 
   .auth-metrics,
-  .hero__stats,
   .dashboard-cards,
   .inventory-form,
   .quick-catalog__actions,
   .quick-catalog-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    padding: 18px;
+  }
+
+  .hero-metrics {
     grid-template-columns: 1fr;
   }
 
@@ -1674,11 +1898,14 @@ tbody tr:last-child td {
   }
 
   .hero__content,
-  .hero__stats,
   .dashboard-cards,
   .detail-grid,
   .metrics-grid {
     gap: 14px;
+  }
+
+  .hero-chart {
+    min-height: 226px;
   }
 
   table,
@@ -1762,6 +1989,30 @@ tbody tr:last-child td {
   .app-main,
   .dashboard-grid {
     gap: 14px;
+  }
+
+  .hero-visual {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .hero-chart {
+    min-height: 208px;
+    padding: 16px;
+  }
+
+  .hero-chart::before {
+    width: 184px;
+    height: 184px;
+  }
+
+  .hero-chart::after {
+    width: 122px;
+    height: 122px;
+  }
+
+  .hero-metric-card {
+    padding: 14px;
   }
 
   .topbar__actions,
