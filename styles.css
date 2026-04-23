@@ -1426,6 +1426,17 @@ tbody tr:last-child td {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .auth-copy,
+  .auth-card,
+  .sidebar,
+  .topbar,
+  .hero,
+  .panel {
+    animation: none;
+  }
+}
+
 @media (max-width: 1260px) {
   .app-layout {
     grid-template-columns: 1fr;
@@ -1479,12 +1490,23 @@ tbody tr:last-child td {
     width: min(100% - 20px, 100%);
   }
 
+  .page-shell {
+    padding-top: 16px;
+  }
+
+  .app-layout,
+  .app-main,
+  .dashboard-grid {
+    gap: 16px;
+  }
+
   .auth-copy,
   .auth-card,
   .sidebar,
   .topbar,
   .hero,
   .panel {
+    animation: none;
     padding: 20px;
     border-radius: 24px;
   }
@@ -1492,16 +1514,59 @@ tbody tr:last-child td {
   .auth-metrics,
   .hero__stats,
   .dashboard-cards,
-  .tabs,
   .inventory-form,
   .quick-catalog__actions,
   .quick-catalog-form__grid {
     grid-template-columns: 1fr;
   }
 
+  .sidebar {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .sidebar__brand {
+    gap: 10px;
+  }
+
+  .sidebar__caption,
+  .sidebar .brand-lockup__text {
+    display: none;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0 2px 6px;
+    margin: 0 -2px -6px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .tabs::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .tabs::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+  }
+
+  .tab-button {
+    flex: 0 0 auto;
+    min-width: 132px;
+    min-height: 52px;
+    padding: 10px 12px;
+    scroll-snap-align: start;
+  }
+
+  .tab-button__text {
+    white-space: nowrap;
+  }
+
   .topbar,
-  .session-chip,
-  .topbar__actions,
   .panel__header,
   .panel__header--spread,
   .quick-catalog__header,
@@ -1512,8 +1577,36 @@ tbody tr:last-child td {
     align-items: stretch;
   }
 
+  .topbar {
+    gap: 14px;
+  }
+
+  .topbar__title,
+  .panel__header h2,
+  .auth-card h2,
+  .confirm-dialog__title {
+    font-size: 24px;
+  }
+
+  .topbar__actions {
+    display: grid;
+    gap: 10px;
+  }
+
+  .session-chip {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .session-chip .ghost-button,
+  #themeToggleButton {
+    width: 100%;
+  }
+
   .toolbar {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
   }
 
@@ -1536,12 +1629,49 @@ tbody tr:last-child td {
   .global-search {
     width: 100%;
     flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .toolbar .search {
+    grid-column: 1 / -1;
+  }
+
+  .toolbar--inline {
+    grid-template-columns: 1fr;
   }
 
   .detail-grid,
   .metrics-grid,
   .inventory-form--compact {
     grid-template-columns: 1fr;
+  }
+
+  .field input,
+  .field textarea,
+  .field select,
+  .toolbar-select,
+  .search input {
+    font-size: 16px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .row-action {
+    min-height: 48px;
+  }
+
+  .hero h1 {
+    max-width: none;
+    font-size: clamp(30px, 10vw, 42px);
+  }
+
+  .hero__content,
+  .hero__stats,
+  .dashboard-cards,
+  .detail-grid,
+  .metrics-grid {
+    gap: 14px;
   }
 
   table,
@@ -1580,9 +1710,10 @@ tbody tr:last-child td {
 
   td {
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
     gap: 12px;
     padding: 14px 16px;
+    align-items: start;
   }
 
   td::before {
@@ -1596,9 +1727,55 @@ tbody tr:last-child td {
 
   .row-actions {
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .detail-list__row--actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-screen,
+  .page-shell {
+    width: calc(100% - 14px);
+  }
+
+  .auth-copy,
+  .auth-card,
+  .sidebar,
+  .topbar,
+  .hero,
+  .panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .app-layout,
+  .app-main,
+  .dashboard-grid {
+    gap: 14px;
+  }
+
+  .topbar__actions,
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .tab-button {
+    min-width: 120px;
+  }
+
+  .session-chip {
+    padding: 10px;
+  }
+
+  td {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  td::before {
+    margin-bottom: 2px;
   }
 }

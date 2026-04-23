@@ -9,6 +9,8 @@ const username = process.env.BROWSER_SMOKE_USERNAME || process.env.SMOKE_USERNAM
 const password = process.env.BROWSER_SMOKE_PASSWORD || process.env.SMOKE_PASSWORD || "qwerty2026";
 const browserPath = resolveBrowserPath(process.env.BROWSER_PATH);
 const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "inventory-browser-smoke-"));
+const viewport = resolveViewport();
+const isMobileViewport = viewport.isMobile || viewport.width <= 780;
 
 if (!baseUrl || !username || !password) {
   fail("BROWSER_SMOKE_URL, BROWSER_SMOKE_USERNAME va BROWSER_SMOKE_PASSWORD majburiy.");
@@ -21,10 +23,7 @@ if (!browserPath) {
 const browser = await puppeteer.launch({
   executablePath: browserPath,
   headless: "new",
-  defaultViewport: {
-    width: 1440,
-    height: 1200,
-  },
+  defaultViewport: viewport,
   args: [
     "--disable-dev-shm-usage",
     "--disable-gpu",
@@ -49,6 +48,25 @@ try {
 
   if (sidebarCard) {
     fail("Sidebar'dagi olib tashlanishi kerak bo'lgan workflow bloki hali mavjud.");
+  }
+
+  if (isMobileViewport) {
+    await assertNoHorizontalOverflow(page, "dashboard");
+    await page.click('[data-tab-target="inventory"]');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-tab-target="inventory"]')?.classList.contains("is-active") &&
+        !document.querySelector("#tabInventory")?.classList.contains("hidden"),
+      { timeout: 10000 }
+    );
+    await assertNoHorizontalOverflow(page, "inventory");
+    await page.click('[data-tab-target="dashboard"]');
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-tab-target="dashboard"]')?.classList.contains("is-active") &&
+        !document.querySelector("#tabDashboard")?.classList.contains("hidden"),
+      { timeout: 10000 }
+    );
   }
 
   const beforeToggle = await page.evaluate(() => {
@@ -107,6 +125,7 @@ try {
           "login",
           "dashboard",
           "sidebar-card-removed",
+          ...(isMobileViewport ? ["mobile-tab-navigation", "mobile-no-horizontal-overflow"] : []),
           "dark-mode-toggle",
           "dark-mode-persisted",
           "logout-confirm-cancel",
@@ -137,6 +156,53 @@ function resolveBrowserPath(explicitPath) {
 
 function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function resolveViewport() {
+  const width = Number.parseInt(process.env.BROWSER_SMOKE_WIDTH || "", 10);
+  const height = Number.parseInt(process.env.BROWSER_SMOKE_HEIGHT || "", 10);
+  const isMobile = String(process.env.BROWSER_SMOKE_MOBILE || "").trim().toLowerCase() === "true";
+  const hasTouch = String(process.env.BROWSER_SMOKE_TOUCH || "").trim().toLowerCase() === "true" || isMobile;
+
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : 1440,
+    height: Number.isFinite(height) && height > 0 ? height : 1200,
+    isMobile,
+    hasTouch,
+  };
+}
+
+async function assertNoHorizontalOverflow(page, contextLabel) {
+  const audit = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    const documentWidth = document.documentElement.scrollWidth;
+    const bodyWidth = document.body.scrollWidth;
+    const offenders = Array.from(document.querySelectorAll("body *"))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.right - 1 > viewportWidth;
+      })
+      .slice(0, 8)
+      .map((element) => ({
+        className: String(element.className || "").trim().slice(0, 120),
+        id: element.id || "",
+        tag: element.tagName.toLowerCase(),
+        width: Math.round(element.getBoundingClientRect().width),
+      }));
+
+    return {
+      bodyWidth,
+      documentWidth,
+      offenders,
+      viewportWidth,
+    };
+  });
+
+  if (audit.documentWidth > audit.viewportWidth + 1 || audit.bodyWidth > audit.viewportWidth + 1) {
+    fail(
+      `${contextLabel} bo'limida mobil gorizontal overflow aniqlandi: ${JSON.stringify(audit)}`
+    );
+  }
 }
 
 function fail(message) {

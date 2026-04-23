@@ -1102,10 +1102,33 @@ function resetUserForm() {
 
 function activateTab(tabName) {
   state.activeTab = tabName;
-  tabButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.tabTarget === tabName));
+  let activeButton = null;
+
+  tabButtons.forEach((button) => {
+    const isActive = button.dataset.tabTarget === tabName;
+    button.classList.toggle("is-active", isActive);
+
+    if (isActive) {
+      activeButton = button;
+    }
+  });
+
   document.querySelectorAll(".app-tab").forEach((tab) => {
     tab.classList.toggle("hidden", tab.id !== `tab${capitalize(tabName)}`);
   });
+
+  if (activeButton && window.matchMedia("(max-width: 780px)").matches && !appShell.classList.contains("hidden")) {
+    activeButton.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+
+    appShell.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
 }
 
 function confirmLogout() {
