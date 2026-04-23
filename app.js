@@ -6,6 +6,9 @@ const loginPasswordInput = document.querySelector("#loginPassword");
 const loginButton = document.querySelector("#loginButton");
 const authFeedback = document.querySelector("#authFeedback");
 const logoutButton = document.querySelector("#logoutButton");
+const logoutDialog = document.querySelector("#logoutDialog");
+const logoutDialogCancelButton = document.querySelector("#logoutDialogCancelButton");
+const logoutDialogConfirmButton = document.querySelector("#logoutDialogConfirmButton");
 const sessionUserElement = document.querySelector("#sessionUser");
 const sessionRoleElement = document.querySelector("#sessionRole");
 const statusBanner = document.querySelector("#statusBanner");
@@ -171,16 +174,30 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 logoutButton.addEventListener("click", async () => {
+  const confirmed = await confirmLogout();
+
+  if (!confirmed) {
+    return;
+  }
+
   logoutButton.disabled = true;
+  let shouldShowAuth = false;
 
   try {
     await request("/api/auth/logout", {
       method: "POST",
     });
+    shouldShowAuth = true;
   } catch (error) {
-    showStatus(error.message, "error");
+    if (error.status === 401) {
+      shouldShowAuth = true;
+    } else {
+      showStatus(error.message, "error");
+    }
   } finally {
-    showAuth();
+    if (shouldShowAuth) {
+      showAuth();
+    }
     logoutButton.disabled = false;
   }
 });
@@ -1088,6 +1105,60 @@ function activateTab(tabName) {
   tabButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.tabTarget === tabName));
   document.querySelectorAll(".app-tab").forEach((tab) => {
     tab.classList.toggle("hidden", tab.id !== `tab${capitalize(tabName)}`);
+  });
+}
+
+function confirmLogout() {
+  if (!logoutDialog || typeof logoutDialog.showModal !== "function") {
+    return Promise.resolve(window.confirm("Tizimdan chiqishni xohlaysizmi?"));
+  }
+
+  if (logoutDialog.open) {
+    logoutDialog.close("cancel");
+  }
+
+  return new Promise((resolve) => {
+    const handleClose = () => {
+      cleanup();
+      resolve(logoutDialog.returnValue === "confirm");
+    };
+
+    const handleCancel = (event) => {
+      event.preventDefault();
+      logoutDialog.close("cancel");
+    };
+
+    const handleBackdropClick = (event) => {
+      const bounds = logoutDialog.getBoundingClientRect();
+      const clickedInside =
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom;
+
+      if (!clickedInside) {
+        logoutDialog.close("cancel");
+      }
+    };
+
+    const handleCancelClick = () => logoutDialog.close("cancel");
+    const handleConfirmClick = () => logoutDialog.close("confirm");
+
+    function cleanup() {
+      logoutDialog.removeEventListener("close", handleClose);
+      logoutDialog.removeEventListener("cancel", handleCancel);
+      logoutDialog.removeEventListener("click", handleBackdropClick);
+      logoutDialogCancelButton?.removeEventListener("click", handleCancelClick);
+      logoutDialogConfirmButton?.removeEventListener("click", handleConfirmClick);
+    }
+
+    logoutDialog.addEventListener("close", handleClose);
+    logoutDialog.addEventListener("cancel", handleCancel);
+    logoutDialog.addEventListener("click", handleBackdropClick);
+    logoutDialogCancelButton?.addEventListener("click", handleCancelClick);
+    logoutDialogConfirmButton?.addEventListener("click", handleConfirmClick);
+    logoutDialog.showModal();
+    logoutDialogConfirmButton?.focus();
   });
 }
 

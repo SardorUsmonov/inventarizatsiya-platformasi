@@ -88,6 +88,15 @@ try {
   }
 
   await page.screenshot({ path: path.join(outputDir, "dark.png"), fullPage: true });
+  await page.click("#logoutButton");
+  await page.waitForSelector("#logoutDialog[open]", { timeout: 10000 });
+  await page.click("#logoutDialogCancelButton");
+  await page.waitForFunction(() => !document.querySelector("#logoutDialog")?.open, { timeout: 10000 });
+  await page.waitForSelector("#appShell:not(.hidden)", { timeout: 10000 });
+  await page.click("#logoutButton");
+  await page.waitForSelector("#logoutDialog[open]", { timeout: 10000 });
+  await page.click("#logoutDialogConfirmButton");
+  await page.waitForSelector("#authScreen:not(.hidden)", { timeout: 20000 });
 
   console.log(
     JSON.stringify(
@@ -100,6 +109,8 @@ try {
           "sidebar-card-removed",
           "dark-mode-toggle",
           "dark-mode-persisted",
+          "logout-confirm-cancel",
+          "logout-confirm-accept",
         ],
         outputDir,
         status: "ok",

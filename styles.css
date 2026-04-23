@@ -622,6 +622,55 @@ body[data-theme="dark"] .search-results {
   gap: 8px;
 }
 
+.confirm-dialog {
+  width: min(420px, calc(100% - 24px));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.confirm-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(6px);
+}
+
+.confirm-dialog__panel {
+  display: grid;
+  gap: 18px;
+  padding: 26px;
+  border-radius: 24px;
+  border: 1px solid var(--line-strong);
+  background:
+    linear-gradient(180deg, var(--panel-gradient-start), var(--panel-gradient-end)),
+    var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirm-dialog__content {
+  display: grid;
+  gap: 10px;
+}
+
+.confirm-dialog__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.confirm-dialog__text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .search-results__title {
   color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
@@ -1466,6 +1515,19 @@ tbody tr:last-child td {
   .toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .confirm-dialog {
+    width: min(100% - 20px, 100%);
+  }
+
+  .confirm-dialog__panel,
+  .confirm-dialog__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .confirm-dialog__actions {
+    display: grid;
   }
 
   .toolbar > *,

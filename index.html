@@ -104,6 +104,17 @@
           </div>
 
           <div class="topbar__actions">
+            <div class="session-chip">
+              <div class="session-chip__meta">
+                <span class="session-chip__label">Aktiv foydalanuvchi</span>
+                <strong id="sessionUser">-</strong>
+                <span class="session-chip__role" id="sessionRole">-</span>
+              </div>
+              <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
+            </div>
+
+            <button class="ghost-button" id="themeToggleButton" type="button">Tungi rejim</button>
+
             <div class="global-search" id="globalSearchBox">
               <label class="search search--compact">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -113,17 +124,6 @@
               </label>
               <div class="search-results hidden" id="globalSearchResults"></div>
             </div>
-
-            <button class="ghost-button" id="themeToggleButton" type="button">Tungi rejim</button>
-
-            <div class="session-chip">
-              <div class="session-chip__meta">
-                <span class="session-chip__label">Aktiv foydalanuvchi</span>
-                <strong id="sessionUser">-</strong>
-                <span class="session-chip__role" id="sessionRole">-</span>
-              </div>
-              <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
-            </div>
           </div>
         </header>
 
@@ -131,45 +131,45 @@
           Xavfsizlik uchun parolni yangilash majburiy. Avval yangi parol o'rnating.
         </div>
 
-        <header class="hero">
-          <div class="hero__content">
-            <span class="hero__badge">Zamonaviy boshqaruv uslubi</span>
-            <p class="hero__eyebrow">Asosiy boshqaruv maydoni</p>
-            <h1>Korxona moddiy bazasi</h1>
-            <p class="hero__text">
-              Interfeys tez ishlash, aniq ko'rinish va kundalik operatsiyalarni kamroq bosqich bilan bajarish uchun
-              optimallashtirilgan. Jadval, formalar va katalog oqimi bir-biriga moslangan.
-            </p>
-
-            <div class="hero__chips">
-              <span class="hero-chip">Rol asosida kirish</span>
-              <span class="hero-chip">Excel tayyor</span>
-              <span class="hero-chip">Audit ko'rinishi</span>
-            </div>
-          </div>
-
-          <div class="hero__stats">
-            <article class="stat-card">
-              <span class="stat-card__label">Yozuvlar</span>
-              <strong class="stat-card__value" id="totalRecords">0</strong>
-              <span class="stat-card__hint">Barcha inventar pozitsiyalari</span>
-            </article>
-            <article class="stat-card">
-              <span class="stat-card__label">Bo'limlar</span>
-              <strong class="stat-card__value" id="totalDepartments">0</strong>
-              <span class="stat-card__hint">Aktiv katalog segmentlari</span>
-            </article>
-            <article class="stat-card">
-              <span class="stat-card__label">Aktiv texnikalar</span>
-              <strong class="stat-card__value" id="activeDevices">0</strong>
-              <span class="stat-card__hint">Biriktirishga tayyor qurilmalar</span>
-            </article>
-          </div>
-        </header>
-
         <div class="status-banner hidden" id="statusBanner" role="status" aria-live="polite"></div>
 
         <section class="app-tab" id="tabDashboard">
+          <header class="hero">
+            <div class="hero__content">
+              <span class="hero__badge">Zamonaviy boshqaruv uslubi</span>
+              <p class="hero__eyebrow">Asosiy boshqaruv maydoni</p>
+              <h1>Korxona moddiy bazasi</h1>
+              <p class="hero__text">
+                Interfeys tez ishlash, aniq ko'rinish va kundalik operatsiyalarni kamroq bosqich bilan bajarish uchun
+                optimallashtirilgan. Jadval, formalar va katalog oqimi bir-biriga moslangan.
+              </p>
+
+              <div class="hero__chips">
+                <span class="hero-chip">Rol asosida kirish</span>
+                <span class="hero-chip">Excel tayyor</span>
+                <span class="hero-chip">Audit ko'rinishi</span>
+              </div>
+            </div>
+
+            <div class="hero__stats">
+              <article class="stat-card">
+                <span class="stat-card__label">Yozuvlar</span>
+                <strong class="stat-card__value" id="totalRecords">0</strong>
+                <span class="stat-card__hint">Barcha inventar pozitsiyalari</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-card__label">Bo'limlar</span>
+                <strong class="stat-card__value" id="totalDepartments">0</strong>
+                <span class="stat-card__hint">Aktiv katalog segmentlari</span>
+              </article>
+              <article class="stat-card">
+                <span class="stat-card__label">Aktiv texnikalar</span>
+                <strong class="stat-card__value" id="activeDevices">0</strong>
+                <span class="stat-card__hint">Biriktirishga tayyor qurilmalar</span>
+              </article>
+            </div>
+          </header>
+
           <div class="dashboard-grid">
             <section class="panel dashboard-panel">
               <div class="panel__header">
@@ -1118,6 +1118,21 @@
       </div>
     </div>
   </div>
+
+  <dialog class="confirm-dialog" id="logoutDialog">
+    <div class="confirm-dialog__panel">
+      <div class="confirm-dialog__content">
+        <p class="panel__eyebrow">Chiqish</p>
+        <h3 class="confirm-dialog__title">Tizimdan chiqishni xohlaysizmi?</h3>
+        <p class="confirm-dialog__text">Agar tasdiqlasangiz, joriy sessiya yopiladi va qayta kirish kerak bo'ladi.</p>
+      </div>
+
+      <div class="confirm-dialog__actions">
+        <button class="secondary-button" id="logoutDialogCancelButton" type="button">Yo'q</button>
+        <button class="primary-button" id="logoutDialogConfirmButton" type="button">Ha</button>
+      </div>
+    </div>
+  </dialog>
 
   <script src="app.js"></script>
   <script src="enhancements.js"></script>
