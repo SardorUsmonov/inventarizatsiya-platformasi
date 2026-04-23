@@ -741,6 +741,32 @@ body[data-theme="dark"] .hero-visual {
   gap: 10px;
 }
 
+.hero-visual__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hero-visual__pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--ghost-bg);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.hero-visual__pill--accent {
+  border-color: rgba(37, 99, 235, 0.2);
+  background: color-mix(in srgb, var(--brand-soft) 76%, transparent);
+  color: var(--brand-dark);
+}
+
 .hero-visual__eyebrow {
   margin: 0;
   color: var(--brand-dark);
@@ -769,6 +795,17 @@ body[data-theme="dark"] .hero-visual {
 .hero-visual__body {
   display: grid;
   gap: 16px;
+}
+
+.hero-empty-note {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .hero-chart {
@@ -813,6 +850,20 @@ body[data-theme="dark"] .hero-visual {
 .hero-chart.is-empty::before {
   filter: saturate(0.7);
   opacity: 0.82;
+}
+
+.hero-visual.is-empty .hero-chart {
+  min-height: 222px;
+}
+
+.hero-visual.is-empty .hero-chart::before {
+  width: 176px;
+  height: 176px;
+}
+
+.hero-visual.is-empty .hero-chart::after {
+  width: 118px;
+  height: 118px;
 }
 
 .hero-chart__inner {
@@ -910,13 +961,13 @@ body[data-theme="dark"] .hero-visual {
 
 .hero-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
 .hero-metric-card {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 16px 16px 14px;
   border-radius: 18px;
   border: 1px solid var(--line);
@@ -925,15 +976,20 @@ body[data-theme="dark"] .hero-visual {
 }
 
 .hero-metric-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 12px;
+}
+
+.hero-metric-card__label {
+  line-height: 1.45;
 }
 
 .hero-metric-card__value {
   font-size: clamp(28px, 4vw, 34px);
   line-height: 0.95;
+  text-align: right;
 }
 
 .hero-metric-card:nth-child(1) .hero-metric-card__meter span {
@@ -949,7 +1005,7 @@ body[data-theme="dark"] .hero-visual {
 }
 
 .hero-metric-card__hint {
-  min-height: 40px;
+  min-height: 0;
 }
 
 .status-banner {

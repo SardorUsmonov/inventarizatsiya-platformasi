@@ -73,9 +73,13 @@ const tableSummary = document.querySelector("#tableSummary");
 const totalRecordsElement = document.querySelector("#totalRecords");
 const totalDepartmentsElement = document.querySelector("#totalDepartments");
 const activeDevicesElement = document.querySelector("#activeDevices");
+const heroVisualElement = document.querySelector(".hero-visual");
 const heroStatusChartElement = document.querySelector("#heroStatusChart");
 const heroStatusLegendElement = document.querySelector("#heroStatusLegend");
 const heroChartSummaryElement = document.querySelector("#heroChartSummary");
+const heroStatusCountPillElement = document.querySelector("#heroStatusCountPill");
+const heroLeadingStatusPillElement = document.querySelector("#heroLeadingStatusPill");
+const heroEmptyNoteElement = document.querySelector("#heroEmptyNote");
 const heroDepartmentMeterElement = document.querySelector("#heroDepartmentMeter");
 const heroDepartmentSummaryElement = document.querySelector("#heroDepartmentSummary");
 const heroActiveMeterElement = document.querySelector("#heroActiveMeter");
@@ -882,32 +886,41 @@ function renderHeroVisualization(stats, overview) {
   const repairCount = Number(stats.repairCount) || 0;
   const primaryDepartment = overview?.byDepartment?.[0] || null;
   const statusItems = buildHeroStatusItems(overview?.byStatus || [], totalRecords);
+  const leadingStatus = statusItems[0] || null;
 
   totalRecordsElement.textContent = totalRecords;
   totalDepartmentsElement.textContent = totalDepartments;
   activeDevicesElement.textContent = activeDevices;
   heroAttentionCountElement.textContent = attentionCount;
 
+  heroVisualElement.classList.toggle("is-empty", !totalRecords);
   heroStatusChartElement.classList.toggle("is-empty", !statusItems.length);
   heroStatusChartElement.style.setProperty("--chart-fill", buildHeroStatusGradient(statusItems, totalRecords));
   heroStatusChartElement.setAttribute("aria-label", getHeroChartAriaLabel(statusItems, totalRecords));
   heroChartSummaryElement.textContent = buildHeroChartSummary(statusItems, totalRecords);
+  heroStatusCountPillElement.textContent = `${statusItems.length || 0} ta holat`;
+  heroLeadingStatusPillElement.textContent = leadingStatus
+    ? `${leadingStatus.label} yetakchi`
+    : "Yozuv kutilmoqda";
+  heroEmptyNoteElement.classList.toggle("hidden", Boolean(totalRecords));
   renderHeroStatusLegend(statusItems, totalRecords);
 
   setHeroMeter(heroDepartmentMeterElement, totalRecords ? ((primaryDepartment?.total || 0) / totalRecords) * 100 : 0);
   heroDepartmentSummaryElement.textContent = totalDepartments
     ? `${localizeDepartmentName(primaryDepartment?.label || "Bo'lim kiritilmagan")} ${primaryDepartment?.total || 0} ta aktiv bilan yetakchi.`
-    : "Aktiv katalog segmentlari hali shakllanmagan.";
+    : "Bo'limlar soni inventar yozuvlari paydo bo'lishi bilan hisoblanadi.";
 
   setHeroMeter(heroActiveMeterElement, totalRecords ? (activeDevices / totalRecords) * 100 : 0);
   heroActiveSummaryElement.textContent = totalRecords
     ? `${formatPercent(activeDevices, totalRecords)} aktiv hozir foydalanishda.`
-    : "Biriktirishga tayyor qurilmalar shu yerda ko'rinadi.";
+    : "Aktiv texnikalar ulushi yozuvlar kiritilgach ko'rinadi.";
 
   setHeroMeter(heroAttentionMeterElement, totalRecords ? (attentionCount / totalRecords) * 100 : 0);
   heroAttentionSummaryElement.textContent = attentionCount
     ? `${repairCount} ta ta'mirda, ${warrantyExpiringCount} ta kafolat nazoratida.`
-    : "Ta'mir va kafolat bo'yicha xavfli holat aniqlanmadi.";
+    : totalRecords
+      ? "Ta'mir va kafolat bo'yicha xavfli holat aniqlanmadi."
+      : "Riskdagi aktivlar shu yerda avtomatik ajralib ko'rinadi.";
 }
 
 function buildHeroStatusItems(items, totalRecords) {
@@ -969,7 +982,7 @@ function getHeroChartAriaLabel(items, totalRecords) {
 
 function buildHeroChartSummary(items, totalRecords) {
   if (!items.length || !totalRecords) {
-    return "Ma'lumot kiritilganda holatlar ulushi shu yerda ko'rinadi.";
+    return "Birinchi inventar yozuvi qo'shilgach holatlar ulushi shu yerda paydo bo'ladi.";
   }
 
   const leader = items[0];
