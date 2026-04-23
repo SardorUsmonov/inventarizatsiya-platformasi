@@ -9,6 +9,10 @@ const {
   DEFAULT_CONDITION_STATUS,
 } = require("./inventory-options");
 
+const AUDIT_AUTO_REFRESH_SECONDS = 30;
+const AUDIT_RETENTION_OPTIONS = [30, 90, 180];
+const DEFAULT_AUDIT_RETENTION_DAYS = 90;
+
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
   fs.mkdirSync(config.attachmentsDir, { recursive: true });
@@ -16,10 +20,12 @@ function createDatabase(config) {
 
   const database = new DatabaseSync(config.databasePath);
   initializeDatabase(database);
+  seedSystemSettings(database);
   seedDefaultAdmin(database, config);
   seedRecommendedCatalogs(database);
   seedCatalogsFromInventory(database);
   syncInventoryCatalogLinks(database);
+  pruneAuditLogsByRetention(database);
 
   return {
     close() {
@@ -641,6 +647,7 @@ function createDatabase(config) {
       };
     },
     listAuditLogs(filters = {}) {
+      pruneAuditLogsByRetention(database);
       const params = buildAuditParams(filters);
       return database
         .prepare(`
@@ -964,11 +971,17 @@ function createDatabase(config) {
         `)
         .get(getNow()).total;
     },
+    getAuditSettings() {
+      return buildAuditSettings(database);
+    },
     getSystemMetrics() {
       const databaseStat = fs.existsSync(config.databasePath) ? fs.statSync(config.databasePath) : null;
+      const auditSettings = buildAuditSettings(database);
 
       return {
         activeSessions: this.countActiveSessions(),
+        auditLogs: database.prepare("SELECT COUNT(*) AS total FROM audit_logs").get().total,
+        auditRetentionDays: auditSettings.retentionDays,
         attachmentFiles: database.prepare("SELECT COUNT(*) AS total FROM inventory_attachments").get().total,
         backupCount: database.prepare("SELECT COUNT(*) AS total FROM backup_runs").get().total,
         databaseSizeBytes: databaseStat?.size || 0,
@@ -1153,6 +1166,7 @@ function createDatabase(config) {
           devices: database.prepare("SELECT * FROM devices ORDER BY id ASC").all(),
           inventoryRecords: database.prepare("SELECT * FROM inventory_records ORDER BY id ASC").all(),
           serviceLogs: database.prepare("SELECT * FROM inventory_service_logs ORDER BY id ASC").all(),
+          systemSettings: database.prepare("SELECT * FROM system_settings ORDER BY setting_key ASC").all(),
           transfers: database.prepare("SELECT * FROM inventory_transfers ORDER BY id ASC").all(),
           users: database.prepare("SELECT * FROM users ORDER BY id ASC").all(),
         },
@@ -1308,6 +1322,7 @@ function createDatabase(config) {
 
       try {
         database.exec(`
+          DELETE FROM system_settings;
           DELETE FROM inventory_attachments;
           DELETE FROM inventory_service_logs;
           DELETE FROM inventory_transfers;
@@ -1320,6 +1335,7 @@ function createDatabase(config) {
           DELETE FROM users;
         `);
 
+        insertMany(database, "system_settings", payload.data.systemSettings || []);
         insertMany(database, "users", payload.data.users || []);
         insertMany(database, "departments", payload.data.departments || []);
         insertMany(database, "devices", payload.data.devices || []);
@@ -1335,6 +1351,15 @@ function createDatabase(config) {
         database.exec("ROLLBACK");
         throw error;
       }
+    },
+    setAuditRetentionDays(retentionDays) {
+      const pruneResult = pruneAuditLogsByRetention(database, retentionDays);
+
+      return {
+        ...buildAuditSettings(database),
+        deletedCount: pruneResult.deletedCount,
+        prunedAt: pruneResult.prunedAt,
+      };
     },
     logAudit(payload) {
       database
@@ -1366,6 +1391,11 @@ function createDatabase(config) {
           payload.ipAddress || null,
           getNow()
         );
+
+      pruneAuditLogsByRetention(database);
+    },
+    pruneAuditLogs() {
+      return pruneAuditLogsByRetention(database);
     },
     pruneExpiredSessions() {
       database.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(getNow());
@@ -1711,6 +1741,12 @@ function initializeDatabase(database) {
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       actor_user_id INTEGER,
@@ -1791,6 +1827,7 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_service_logs_record_date ON inventory_service_logs(inventory_record_id, service_date DESC);
     CREATE INDEX IF NOT EXISTS idx_transfers_record_date ON inventory_transfers(inventory_record_id, transfer_date DESC);
     CREATE INDEX IF NOT EXISTS idx_attachments_record ON inventory_attachments(inventory_record_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entity_type ON audit_logs(entity_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action, created_at DESC);
   `);
@@ -1831,6 +1868,29 @@ function seedDefaultAdmin(database, config) {
       now,
       now
     );
+}
+
+function seedSystemSettings(database) {
+  const now = getNow();
+  database
+    .prepare(`
+      INSERT OR IGNORE INTO system_settings (
+        setting_key,
+        setting_value,
+        updated_at
+      ) VALUES (?, ?, ?)
+    `)
+    .run("audit_retention_days", String(DEFAULT_AUDIT_RETENTION_DAYS), now);
+
+  database
+    .prepare(`
+      INSERT OR IGNORE INTO system_settings (
+        setting_key,
+        setting_value,
+        updated_at
+      ) VALUES (?, ?, ?)
+    `)
+    .run("audit_last_pruned_at", "", now);
 }
 
 function seedCatalogsFromInventory(database) {
@@ -2159,6 +2219,88 @@ function buildAuditParams(filters = {}) {
     search,
     searchPattern: search ? `%${escapeLike(search)}%` : "%",
   };
+}
+
+function buildAuditSettings(database) {
+  return {
+    autoRefreshSeconds: AUDIT_AUTO_REFRESH_SECONDS,
+    lastPrunedAt: getSettingValue(database, "audit_last_pruned_at", ""),
+    retentionDays: getAuditRetentionDays(database),
+    retentionOptions: [...AUDIT_RETENTION_OPTIONS],
+  };
+}
+
+function getAuditRetentionDays(database) {
+  return normalizeAuditRetentionDays(
+    getSettingValue(database, "audit_retention_days", String(DEFAULT_AUDIT_RETENTION_DAYS))
+  );
+}
+
+function normalizeAuditRetentionDays(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return AUDIT_RETENTION_OPTIONS.includes(parsed) ? parsed : DEFAULT_AUDIT_RETENTION_DAYS;
+}
+
+function pruneAuditLogsByRetention(database, retentionDays = getAuditRetentionDays(database)) {
+  const normalizedRetentionDays = normalizeAuditRetentionDays(retentionDays);
+  const cutoffDate = new Date();
+  cutoffDate.setUTCDate(cutoffDate.getUTCDate() - normalizedRetentionDays);
+  const cutoffIso = cutoffDate.toISOString();
+  const deletedCount = database
+    .prepare(`
+      SELECT COUNT(*) AS total
+      FROM audit_logs
+      WHERE created_at < ?
+    `)
+    .get(cutoffIso).total;
+
+  if (deletedCount) {
+    database
+      .prepare(`
+        DELETE FROM audit_logs
+        WHERE created_at < ?
+      `)
+      .run(cutoffIso);
+  }
+
+  const prunedAt = getNow();
+  setSettingValue(database, "audit_retention_days", String(normalizedRetentionDays));
+  setSettingValue(database, "audit_last_pruned_at", prunedAt);
+
+  return {
+    cutoffIso,
+    deletedCount,
+    prunedAt,
+    retentionDays: normalizedRetentionDays,
+  };
+}
+
+function getSettingValue(database, settingKey, fallbackValue = "") {
+  const row = database
+    .prepare(`
+      SELECT setting_value AS settingValue
+      FROM system_settings
+      WHERE setting_key = ?
+      LIMIT 1
+    `)
+    .get(settingKey);
+
+  return row ? row.settingValue : fallbackValue;
+}
+
+function setSettingValue(database, settingKey, settingValue) {
+  database
+    .prepare(`
+      INSERT INTO system_settings (
+        setting_key,
+        setting_value,
+        updated_at
+      ) VALUES (?, ?, ?)
+      ON CONFLICT(setting_key) DO UPDATE SET
+        setting_value = excluded.setting_value,
+        updated_at = excluded.updated_at
+    `)
+    .run(settingKey, String(settingValue ?? ""), getNow());
 }
 
 function mapDepartment(row) {

@@ -1013,9 +1013,20 @@
                   <option value="device">Texnika</option>
                   <option value="user">Foydalanuvchi</option>
                 </select>
+                <select class="toolbar-select" id="auditRetentionSelect">
+                  <option value="30">Auto-tozalash: 30 kun</option>
+                  <option value="90">Auto-tozalash: 90 kun</option>
+                  <option value="180">Auto-tozalash: 180 kun</option>
+                </select>
+                <button class="secondary-button" id="saveAuditRetentionButton" type="button">Saqlash</button>
                 <button class="secondary-button" id="refreshAuditButton" type="button">Yangilash</button>
+                <button class="secondary-button" id="archiveAuditButton" type="button">Arxivlash</button>
               </div>
             </div>
+
+            <p class="toolbar-hint" id="auditAutomationNote">
+              Audit log har 30 soniyada avtomatik yangilanadi.
+            </p>
 
             <div class="table-wrap">
               <table>

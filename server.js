@@ -289,6 +289,8 @@ app.get("/api/dashboard", (request, response) => {
 
   response.json({
     auditLogs: permissions.viewAudit ? database.listAuditLogs({ limit: 50 }) : [],
+    auditRefreshedAt: permissions.viewAudit ? new Date().toISOString() : "",
+    auditSettings: permissions.viewAudit ? database.getAuditSettings() : null,
     backupRuns: permissions.manageBackups ? database.listBackupRuns(10) : [],
     departments: database.listDepartments(),
     devices: database.listDevices(),
@@ -1399,7 +1401,83 @@ app.get("/api/audit-logs", requirePermission("viewAudit"), (request, response) =
 
   response.json({
     logs,
+    refreshedAt: new Date().toISOString(),
+    settings: database.getAuditSettings(),
   });
+});
+
+app.put("/api/audit-logs/settings", requirePermission("manageSettings"), (request, response) => {
+  const retentionDays = parsePositiveInteger(request.body?.retentionDays);
+
+  if (![30, 90, 180].includes(retentionDays)) {
+    response.status(400).json({
+      message: "Audit log auto-tozalash muddati faqat 30, 90 yoki 180 kun bo'lishi mumkin.",
+    });
+    return;
+  }
+
+  const settings = database.setAuditRetentionDays(retentionDays);
+  database.logAudit({
+    action: "audit.retention_update",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: {
+      deletedCount: settings.deletedCount,
+      retentionDays: settings.retentionDays,
+    },
+    entityType: "audit",
+    ipAddress: request.ip,
+    summary: `Audit log auto-tozalash muddati ${settings.retentionDays} kun etib o'rnatildi.`,
+  });
+
+  response.json({
+    pruned: {
+      deletedCount: settings.deletedCount,
+      prunedAt: settings.prunedAt,
+      retentionDays: settings.retentionDays,
+    },
+    settings: database.getAuditSettings(),
+  });
+});
+
+app.get("/api/audit-logs/archive", requirePermission("viewAudit"), (request, response) => {
+  const limit = Math.min(parsePositiveInteger(request.query.limit) || 5000, 5000);
+  const filters = {
+    entityType: normalizeText(request.query.entityType, 40),
+    limit,
+    search: normalizeText(request.query.search, 120),
+  };
+  const logs = database.listAuditLogs(filters);
+  const archivedAt = new Date().toISOString();
+  const fileName = `audit-archive-${archivedAt.slice(0, 19).replace(/[:T]/g, "-")}.json`;
+
+  database.logAudit({
+    action: "audit.archive",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: {
+      archivedCount: logs.length,
+      filters,
+    },
+    entityType: "audit",
+    ipAddress: request.ip,
+    summary: `${logs.length} ta audit yozuvi arxivlandi.`,
+  });
+
+  response.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.setHeader("X-Archive-Log-Count", String(logs.length));
+  response.send(JSON.stringify({
+    archivedAt,
+    filters,
+    logCount: logs.length,
+    logs,
+    settings: database.getAuditSettings(),
+  }, null, 2));
 });
 
 app.use("/api", (_request, response) => {

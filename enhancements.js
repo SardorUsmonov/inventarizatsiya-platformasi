@@ -130,6 +130,10 @@
         renderReferenceOptions();
         state.users = [];
         state.auditLogs = [];
+        state.auditSettings = {
+          autoRefreshSeconds: 30,
+          retentionDays: 90,
+        };
         state.dashboardOverview = null;
         enhancementState.systemMetrics = null;
         enhancementState.reportSummary = null;
@@ -137,6 +141,7 @@
         renderDashboard(null);
         renderUsers();
         renderAuditLogs([]);
+        renderAuditAutomationState();
         applyPermissionUI();
         renderSettingsSummary();
         activateTab("settings");
@@ -148,6 +153,8 @@
       state.devices = payload.devices || [];
       state.assetStatuses = payload.inventoryMeta?.assetStatuses || [];
       state.conditionStatuses = payload.inventoryMeta?.conditionStatuses || [];
+      state.auditSettings = payload.auditSettings || state.auditSettings;
+      state.auditLastLoadedAt = payload.auditRefreshedAt || state.auditLastLoadedAt;
       state.dashboardOverview = payload.overview || null;
       state.users = payload.users || [];
       state.auditLogs = payload.auditLogs || [];
@@ -170,6 +177,7 @@
       renderDevices();
       renderUsers();
       renderAuditLogs(state.auditLogs);
+      renderAuditAutomationState();
       applyPermissionUI();
       renderSettingsSummary();
 
@@ -472,6 +480,14 @@
       downloadBackupButton.disabled = !state.permissions.manageBackups || mustChangePassword;
       pickRestoreFileButton.disabled = !state.permissions.manageBackups || mustChangePassword;
       restoreBackupButton.disabled = !state.permissions.manageBackups || mustChangePassword;
+      auditSearchInput.disabled = !canViewAudit || mustChangePassword;
+      auditEntityFilter.disabled = !canViewAudit || mustChangePassword;
+      auditRetentionSelect.disabled = !state.permissions.manageSettings || mustChangePassword;
+      saveAuditRetentionButton.classList.toggle("hidden", !state.permissions.manageSettings);
+      saveAuditRetentionButton.disabled = !state.permissions.manageSettings || mustChangePassword;
+      refreshAuditButton.disabled = !canViewAudit || mustChangePassword;
+      archiveAuditButton.disabled = !canViewAudit || mustChangePassword;
+      auditAutomationNote.classList.toggle("hidden", !canViewAudit);
       attachmentPickButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       attachmentUploadButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       serviceLogSubmitButton.disabled = !state.permissions.manageService || mustChangePassword || !enhancementState.detailRecordId;

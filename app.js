@@ -120,15 +120,25 @@ const cancelUserEditButton = document.querySelector("#cancelUserEditButton");
 const usersTableBody = document.querySelector("#usersTableBody");
 const auditSearchInput = document.querySelector("#auditSearchInput");
 const auditEntityFilter = document.querySelector("#auditEntityFilter");
+const auditRetentionSelect = document.querySelector("#auditRetentionSelect");
+const saveAuditRetentionButton = document.querySelector("#saveAuditRetentionButton");
+const archiveAuditButton = document.querySelector("#archiveAuditButton");
+const auditAutomationNote = document.querySelector("#auditAutomationNote");
 const refreshAuditButton = document.querySelector("#refreshAuditButton");
 const auditTableBody = document.querySelector("#auditTableBody");
 const auditEmptyState = document.querySelector("#auditEmptyState");
 
 const state = {
   activeTab: "dashboard",
+  auditAutoRefreshTimerId: 0,
   assetStatuses: [],
   auditDebounceId: 0,
+  auditLastLoadedAt: "",
   auditLogs: [],
+  auditSettings: {
+    autoRefreshSeconds: 30,
+    retentionDays: 90,
+  },
   catalogSearchDebounceId: 0,
   conditionStatuses: [],
   dashboardOverview: null,
@@ -411,16 +421,44 @@ cancelUserEditButton.addEventListener("click", resetUserForm);
 
 auditSearchInput.addEventListener("input", () => {
   window.clearTimeout(state.auditDebounceId);
-  state.auditDebounceId = window.setTimeout(() => loadAuditLogs().catch(handleError), 280);
+  state.auditDebounceId = window.setTimeout(() => loadAuditLogs({ silent: true }).catch(handleError), 280);
 });
 
-auditEntityFilter.addEventListener("change", () => loadAuditLogs().catch(handleError));
+auditEntityFilter.addEventListener("change", () => loadAuditLogs({ silent: true }).catch(handleError));
+
+saveAuditRetentionButton.addEventListener("click", async () => {
+  saveAuditRetentionButton.disabled = true;
+
+  try {
+    const response = await request("/api/audit-logs/settings", {
+      body: {
+        retentionDays: Number(auditRetentionSelect.value),
+      },
+      method: "PUT",
+    });
+
+    state.auditSettings = response.settings || state.auditSettings;
+    renderAuditAutomationState();
+    await loadAuditLogs({ silent: true });
+
+    const deletedCount = Number(response.pruned?.deletedCount || 0);
+    showStatus(
+      deletedCount
+        ? `${deletedCount} ta eski audit log tozalandi. Auto-tozalash ${state.auditSettings.retentionDays} kun etib saqlandi.`
+        : `Audit log auto-tozalash muddati ${state.auditSettings.retentionDays} kun etib saqlandi.`
+    );
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    saveAuditRetentionButton.disabled = false;
+  }
+});
 
 refreshAuditButton.addEventListener("click", async () => {
   refreshAuditButton.disabled = true;
 
   try {
-    await loadAuditLogs();
+    await loadAuditLogs({ silent: true });
     showStatus("Audit log yangilandi.");
   } catch (error) {
     showStatus(error.message, "error");
@@ -428,6 +466,41 @@ refreshAuditButton.addEventListener("click", async () => {
     refreshAuditButton.disabled = false;
   }
 });
+
+archiveAuditButton.addEventListener("click", async () => {
+  archiveAuditButton.disabled = true;
+
+  try {
+    const url = buildAuditUrl("/api/audit-logs/archive");
+    const response = await fetch(url.toString(), {
+      credentials: "same-origin",
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json") ? await response.json() : null;
+      throw new Error(payload?.message || "Audit arxivini yuklab bo'lmadi.");
+    }
+
+    const blob = await response.blob();
+    const fileName = `audit-archive-${new Date().toISOString().slice(0, 10)}.json`;
+    const archivedCount = Number(response.headers.get("x-archive-log-count") || 0);
+    downloadBlob(blob, fileName, "application/json");
+    showStatus(`${archivedCount} ta audit yozuvi arxivlandi.`);
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    archiveAuditButton.disabled = false;
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.activeTab === "audit" && state.permissions.viewAudit) {
+    loadAuditLogs({ silent: true }).catch(handleError);
+  }
+});
+
+initializeAuditAutoRefresh();
 
 async function bootstrap() {
   if (window.location.protocol === "file:") {
@@ -467,6 +540,8 @@ async function refreshDashboardData() {
   state.departments = payload.departments || [];
   state.devices = payload.devices || [];
   state.assetStatuses = payload.inventoryMeta?.assetStatuses || [];
+  state.auditSettings = payload.auditSettings || state.auditSettings;
+  state.auditLastLoadedAt = payload.auditRefreshedAt || state.auditLastLoadedAt;
   state.conditionStatuses = payload.inventoryMeta?.conditionStatuses || [];
   state.dashboardOverview = payload.overview || null;
   state.users = payload.users || [];
@@ -481,6 +556,7 @@ async function refreshDashboardData() {
   renderDevices();
   renderUsers();
   renderAuditLogs(state.auditLogs);
+  renderAuditAutomationState();
   applyPermissionUI();
 }
 
@@ -535,24 +611,22 @@ async function loadInventory(options = {}) {
   }
 }
 
-async function loadAuditLogs() {
+async function loadAuditLogs(options = {}) {
   if (!state.permissions.viewAudit) {
     return;
   }
 
-  const url = new URL("/api/audit-logs", window.location.origin);
-
-  if (auditSearchInput.value.trim()) {
-    url.searchParams.set("search", auditSearchInput.value.trim());
-  }
-
-  if (auditEntityFilter.value) {
-    url.searchParams.set("entityType", auditEntityFilter.value);
-  }
-
+  const url = buildAuditUrl("/api/audit-logs");
   const payload = await request(url.toString());
   state.auditLogs = payload.logs || [];
+  state.auditSettings = payload.settings || state.auditSettings;
+  state.auditLastLoadedAt = payload.refreshedAt || new Date().toISOString();
   renderAuditLogs(state.auditLogs);
+  renderAuditAutomationState();
+
+  if (!options.silent) {
+    showStatus("Audit log yangilandi.");
+  }
 }
 
 function applySession(session) {
@@ -566,6 +640,7 @@ function applyPermissionUI() {
   const canManageCatalogs = Boolean(state.permissions.manageCatalogs);
   const canManageUsers = Boolean(state.permissions.manageUsers);
   const canViewAudit = Boolean(state.permissions.viewAudit);
+  const canManageSettings = Boolean(state.permissions.manageSettings);
 
   usersTabButton.classList.toggle("hidden", !canManageUsers);
   auditTabButton.classList.toggle("hidden", !canViewAudit);
@@ -580,6 +655,14 @@ function applyPermissionUI() {
   setFormEnabled(departmentForm, canManageCatalogs);
   setFormEnabled(deviceForm, canManageCatalogs);
   setFormEnabled(userForm, canManageUsers);
+  auditSearchInput.disabled = !canViewAudit;
+  auditEntityFilter.disabled = !canViewAudit;
+  auditRetentionSelect.disabled = !canManageSettings;
+  saveAuditRetentionButton.classList.toggle("hidden", !canManageSettings);
+  saveAuditRetentionButton.disabled = !canManageSettings;
+  refreshAuditButton.disabled = !canViewAudit;
+  archiveAuditButton.disabled = !canViewAudit;
+  auditAutomationNote.classList.toggle("hidden", !canViewAudit);
 }
 
 function setFormEnabled(form, enabled) {
@@ -924,6 +1007,40 @@ function renderAuditLogs(logs) {
   auditEmptyState.style.display = logs.length ? "none" : "block";
 }
 
+function renderAuditAutomationState() {
+  const retentionDays = Number(state.auditSettings?.retentionDays || 90);
+  const autoRefreshSeconds = Number(state.auditSettings?.autoRefreshSeconds || 30);
+  const fragments = [
+    `Audit log har ${autoRefreshSeconds} soniyada avtomatik yangilanadi.`,
+    `Auto-tozalash: ${retentionDays} kun.`,
+  ];
+
+  if (state.auditLastLoadedAt) {
+    fragments.push(`Oxirgi yangilanish: ${formatDate(state.auditLastLoadedAt)}.`);
+  }
+
+  if (state.auditSettings?.lastPrunedAt) {
+    fragments.push(`Oxirgi tozalash tekshiruvi: ${formatDate(state.auditSettings.lastPrunedAt)}.`);
+  }
+
+  auditRetentionSelect.value = String(retentionDays);
+  auditAutomationNote.textContent = fragments.join(" ");
+}
+
+function buildAuditUrl(pathname) {
+  const url = new URL(pathname, window.location.origin);
+
+  if (auditSearchInput.value.trim()) {
+    url.searchParams.set("search", auditSearchInput.value.trim());
+  }
+
+  if (auditEntityFilter.value) {
+    url.searchParams.set("entityType", auditEntityFilter.value);
+  }
+
+  return url;
+}
+
 function appendCell(row, label, value) {
   const cell = document.createElement("td");
   cell.dataset.label = label;
@@ -1116,6 +1233,10 @@ function activateTab(tabName) {
   document.querySelectorAll(".app-tab").forEach((tab) => {
     tab.classList.toggle("hidden", tab.id !== `tab${capitalize(tabName)}`);
   });
+
+  if (tabName === "audit" && state.permissions.viewAudit) {
+    loadAuditLogs({ silent: true }).catch(handleError);
+  }
 
   if (activeButton && window.matchMedia("(max-width: 780px)").matches && !appShell.classList.contains("hidden")) {
     activeButton.scrollIntoView({
@@ -1432,6 +1553,8 @@ function formatAuditActionLabel(value) {
     "catalog.device_delete": "Texnika o'chirildi",
     "user.create": "Foydalanuvchi yaratildi",
     "user.update": "Foydalanuvchi yangilandi",
+    "audit.retention_update": "Audit tozalash rejimi yangilandi",
+    "audit.archive": "Audit arxivlandi",
     "system.restore": "Tizim tiklandi",
   };
 
@@ -1541,6 +1664,33 @@ async function request(url, options = {}) {
   }
 
   return payload;
+}
+
+function initializeAuditAutoRefresh() {
+  if (state.auditAutoRefreshTimerId) {
+    return;
+  }
+
+  state.auditAutoRefreshTimerId = window.setInterval(() => {
+    if (document.hidden || state.activeTab !== "audit" || !state.permissions.viewAudit) {
+      return;
+    }
+
+    loadAuditLogs({ silent: true }).catch(() => {
+    });
+  }, (Number(state.auditSettings?.autoRefreshSeconds || 30) || 30) * 1000);
+}
+
+function downloadBlob(content, fileName, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 function downloadInventory(pathname) {

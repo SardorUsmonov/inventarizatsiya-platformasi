@@ -3,6 +3,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { DatabaseSync } = require("node:sqlite");
 const test = require("node:test");
 
 const ExcelJS = require("exceljs");
@@ -13,10 +14,11 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 let serverProcess;
 let tempDir;
+let databasePath;
 
 test.before(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "inventory-platform-"));
-  const databasePath = path.join(tempDir, "inventory.sqlite");
+  databasePath = path.join(tempDir, "inventory.sqlite");
 
   serverProcess = spawn(process.execPath, ["server.js"], {
     cwd: PROJECT_DIR,
@@ -238,6 +240,75 @@ test("viewer is restricted from modifying inventory", { concurrency: false }, as
   });
 
   assert.equal(forbiddenCreate.response.status, 403);
+});
+
+test("audit log retention and archive export work", { concurrency: false }, async () => {
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const retention180 = await admin.request("/api/audit-logs/settings", {
+    body: {
+      retentionDays: 180,
+    },
+    method: "PUT",
+  });
+
+  assert.equal(retention180.response.status, 200);
+  assert.equal(retention180.payload.settings.retentionDays, 180);
+
+  const database = new DatabaseSync(databasePath);
+  const oldCreatedAt = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+
+  database
+    .prepare(`
+      INSERT INTO audit_logs (
+        actor_user_id,
+        actor_username,
+        actor_name,
+        actor_role,
+        action,
+        entity_type,
+        entity_id,
+        summary,
+        details_json,
+        ip_address,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .run(1, "admin", "Test Admin", "admin", "inventory.update", "inventory", 999, "Retention Candidate", "{}", "127.0.0.1", oldCreatedAt);
+  database.close();
+
+  const beforePrune = await admin.request("/api/audit-logs?search=Retention Candidate");
+  assert.equal(beforePrune.response.status, 200);
+  assert.equal(beforePrune.payload.settings.retentionDays, 180);
+  assert.equal(beforePrune.payload.logs.length, 1);
+
+  const archive = await admin.request("/api/audit-logs/archive?search=Retention%20Candidate");
+  assert.equal(archive.response.status, 200);
+  assert.equal(archive.payload.logCount, 1);
+  assert.equal(archive.payload.logs[0].summary, "Retention Candidate");
+  assert.match(archive.response.headers.get("content-disposition") || "", /audit-archive-/);
+
+  const retention30 = await admin.request("/api/audit-logs/settings", {
+    body: {
+      retentionDays: 30,
+    },
+    method: "PUT",
+  });
+
+  assert.equal(retention30.response.status, 200);
+  assert.equal(retention30.payload.settings.retentionDays, 30);
+  assert.ok(retention30.payload.pruned.deletedCount >= 1);
+
+  const afterPrune = await admin.request("/api/audit-logs?search=Retention Candidate");
+  assert.equal(afterPrune.response.status, 200);
+  assert.equal(afterPrune.payload.logs.length, 0);
 });
 
 test("excel import works and logout clears session", { concurrency: false }, async () => {
