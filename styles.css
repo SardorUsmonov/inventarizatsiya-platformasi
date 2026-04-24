@@ -1570,6 +1570,87 @@ body[data-theme="dark"] .hero-visual {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.catalog-workspace {
+  display: grid;
+  gap: 20px;
+}
+
+.catalog-switcher-panel {
+  overflow: visible;
+}
+
+.catalog-segment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: min(520px, 100%);
+}
+
+.catalog-segment__button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--ghost-bg);
+  color: var(--muted-strong);
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.catalog-segment__button:hover {
+  transform: translateY(-1px);
+}
+
+.catalog-segment__button.is-active {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(14, 165, 233, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.catalog-segment__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--muted-strong);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.catalog-segment__button.is-active .catalog-segment__icon {
+  background: linear-gradient(135deg, var(--brand), #0ea5e9);
+  color: #fff;
+}
+
+.catalog-segment__button strong,
+.catalog-segment__button small {
+  display: block;
+}
+
+.catalog-segment__button strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.catalog-segment__button small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.catalog-panel {
+  animation: rise-in 0.28s ease both;
+}
+
 .dashboard-grid {
   display: grid;
   gap: 20px;
@@ -2596,6 +2677,10 @@ tbody tr:last-child td {
     grid-template-columns: 1fr 1fr;
   }
 
+  .catalog-segment {
+    min-width: 0;
+  }
+
   .wizard-progress,
   .wizard-panel__grid,
   .wizard-review__grid {
@@ -2776,6 +2861,10 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
+  .catalog-segment {
+    grid-template-columns: 1fr;
+  }
+
   .detail-grid,
   .metrics-grid,
   .inventory-form--compact {
@@ -2952,6 +3041,11 @@ tbody tr:last-child td {
 
   .operations-group {
     padding: 14px;
+  }
+
+  .catalog-segment__button {
+    min-height: 64px;
+    padding: 12px;
   }
 
   .wizard-status__title {

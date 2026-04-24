@@ -1112,8 +1112,35 @@
         </section>
 
         <section class="app-tab hidden" id="tabCatalogs">
-          <div class="catalog-grid">
-            <section class="panel">
+          <div class="catalog-workspace">
+            <section class="panel catalog-switcher-panel">
+              <div class="panel__header panel__header--spread">
+                <div>
+                  <p class="panel__eyebrow">Kataloglar</p>
+                  <h2>Alohida boshqaruv oynalari</h2>
+                  <p class="panel__subtext">Bo'limlar va texnikalar jarayonlari alohida ochiladi, har birida o'z qidiruvi, formasi va ro'yxati bor.</p>
+                </div>
+
+                <div class="catalog-segment" role="tablist" aria-label="Katalog turini tanlash">
+                  <button class="catalog-segment__button is-active" data-catalog-panel-target="departments" type="button" role="tab" aria-selected="true">
+                    <span class="catalog-segment__icon">BL</span>
+                    <span>
+                      <strong>Bo'limlar</strong>
+                      <small>Tuzilma katalogi</small>
+                    </span>
+                  </button>
+                  <button class="catalog-segment__button" data-catalog-panel-target="devices" type="button" role="tab" aria-selected="false">
+                    <span class="catalog-segment__icon">TX</span>
+                    <span>
+                      <strong>Texnikalar</strong>
+                      <small>Qurilmalar katalogi</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel catalog-panel is-active" id="catalogPanelDepartments" data-catalog-panel="departments" role="tabpanel">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Bo'limlar katalogi</p>
@@ -1182,7 +1209,7 @@
               </div>
             </section>
 
-            <section class="panel">
+            <section class="panel catalog-panel hidden" id="catalogPanelDevices" data-catalog-panel="devices" role="tabpanel">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Texnika katalogi</p>

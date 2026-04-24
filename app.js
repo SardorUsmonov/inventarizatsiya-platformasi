@@ -157,6 +157,8 @@ const cancelDeviceEditButton = document.querySelector("#cancelDeviceEditButton")
 const devicesTableBody = document.querySelector("#devicesTableBody");
 const deviceCatalogSearchInput = document.querySelector("#deviceCatalogSearch");
 const catalogAccessNote = document.querySelector("#catalogAccessNote");
+const catalogPanelButtons = [...document.querySelectorAll("[data-catalog-panel-target]")];
+const catalogPanels = [...document.querySelectorAll("[data-catalog-panel]")];
 const userForm = document.querySelector("#userForm");
 const userIdInput = document.querySelector("#userId");
 const userFullNameInput = document.querySelector("#userFullName");
@@ -181,6 +183,7 @@ const scenarioActionButtons = [...document.querySelectorAll("[data-scenario-acti
 const state = {
   activeTab: "dashboard",
   auditAutoRefreshTimerId: 0,
+  activeCatalogPanel: "departments",
   assetStatuses: [],
   auditDebounceId: 0,
   auditLastLoadedAt: "",
@@ -293,6 +296,10 @@ tabButtons.forEach((button) => {
 
 scenarioActionButtons.forEach((button) => {
   button.addEventListener("click", () => runScenario(button.dataset.scenarioAction));
+});
+
+catalogPanelButtons.forEach((button) => {
+  button.addEventListener("click", () => activateCatalogPanel(button.dataset.catalogPanelTarget));
 });
 
 inventoryWizardSteps.forEach((button) => {
@@ -983,6 +990,23 @@ function renderDashboard(overview) {
   });
 }
 
+function activateCatalogPanel(panelName) {
+  const normalizedPanel = panelName === "devices" ? "devices" : "departments";
+  state.activeCatalogPanel = normalizedPanel;
+
+  catalogPanelButtons.forEach((button) => {
+    const isActive = button.dataset.catalogPanelTarget === normalizedPanel;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  catalogPanels.forEach((panel) => {
+    const isActive = panel.dataset.catalogPanel === normalizedPanel;
+    panel.classList.toggle("hidden", !isActive);
+    panel.classList.toggle("is-active", isActive);
+  });
+}
+
 function renderOperationalScenarios(stats) {
   const totalRecords = Number(stats.totalRecords) || 0;
   const inUseCount = Number(stats.inUseCount) || 0;
@@ -1114,12 +1138,14 @@ function runScenario(action) {
     case "device":
       resetDeviceForm();
       activateTab("catalogs");
+      activateCatalogPanel("devices");
       showStatus("Texnika qo'shish stsenariysi ochildi. Yangi qurilmani katalogga kiriting.");
       focusAndRevealField(deviceCatalogNameInput);
       break;
     case "department":
       resetDepartmentForm();
       activateTab("catalogs");
+      activateCatalogPanel("departments");
       showStatus("Bo'lim qo'shish stsenariysi ochildi. Bo'lim nomi va kodini kiriting.");
       focusAndRevealField(departmentNameInput);
       break;
@@ -1933,6 +1959,7 @@ function fillInventoryForm(record) {
 }
 
 function fillDepartmentForm(department) {
+  activateCatalogPanel("departments");
   departmentCatalogId.value = String(department.id);
   departmentNameInput.value = department.name;
   departmentCodeInput.value = department.code || "";
@@ -1944,6 +1971,7 @@ function fillDepartmentForm(department) {
 }
 
 function fillDeviceForm(device) {
+  activateCatalogPanel("devices");
   deviceCatalogId.value = String(device.id);
   deviceCatalogNameInput.value = device.name;
   deviceCategoryInput.value = device.category || "";
@@ -2055,6 +2083,10 @@ function activateTab(tabName) {
 
   if (tabName === "audit" && state.permissions.viewAudit) {
     loadAuditLogs({ silent: true }).catch(handleError);
+  }
+
+  if (tabName === "catalogs") {
+    activateCatalogPanel(state.activeCatalogPanel);
   }
 
   if (activeButton && window.matchMedia("(max-width: 780px)").matches && !appShell.classList.contains("hidden")) {
