@@ -96,6 +96,12 @@ const heroExecutiveCoverageElement = document.querySelector("#heroExecutiveCover
 const heroExecutiveAttentionElement = document.querySelector("#heroExecutiveAttention");
 const heroDepartmentLeadersElement = document.querySelector("#heroDepartmentLeaders");
 const heroConditionLeadersElement = document.querySelector("#heroConditionLeaders");
+const scenarioEmployeeMetricElement = document.querySelector("#scenarioEmployeeMetric");
+const scenarioAssignmentMetricElement = document.querySelector("#scenarioAssignmentMetric");
+const scenarioDeviceMetricElement = document.querySelector("#scenarioDeviceMetric");
+const scenarioDepartmentMetricElement = document.querySelector("#scenarioDepartmentMetric");
+const scenarioUserMetricElement = document.querySelector("#scenarioUserMetric");
+const scenarioAuditMetricElement = document.querySelector("#scenarioAuditMetric");
 const heroDepartmentMeterElement = document.querySelector("#heroDepartmentMeter");
 const heroDepartmentSummaryElement = document.querySelector("#heroDepartmentSummary");
 const heroActiveMeterElement = document.querySelector("#heroActiveMeter");
@@ -158,6 +164,7 @@ const auditAutomationNote = document.querySelector("#auditAutomationNote");
 const refreshAuditButton = document.querySelector("#refreshAuditButton");
 const auditTableBody = document.querySelector("#auditTableBody");
 const auditEmptyState = document.querySelector("#auditEmptyState");
+const scenarioActionButtons = [...document.querySelectorAll("[data-scenario-action]")];
 
 const state = {
   activeTab: "dashboard",
@@ -245,6 +252,10 @@ logoutButton.addEventListener("click", async () => {
 
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
+});
+
+scenarioActionButtons.forEach((button) => {
+  button.addEventListener("click", () => runScenario(button.dataset.scenarioAction));
 });
 
 inventoryForm.addEventListener("submit", async (event) => {
@@ -704,6 +715,7 @@ function applyPermissionUI() {
   refreshAuditButton.disabled = !canViewAudit;
   archiveAuditButton.disabled = !canViewAudit;
   auditAutomationNote.classList.toggle("hidden", !canViewAudit);
+  syncOperationalInterface();
 }
 
 function setFormEnabled(form, enabled) {
@@ -868,6 +880,7 @@ function renderDashboard(overview) {
   const stats = overview?.stats || {};
 
   renderHeroVisualization(stats, overview);
+  renderOperationalScenarios(stats);
   dashboardInUseCountElement.textContent = stats.inUseCount || 0;
   dashboardInStockCountElement.textContent = stats.inStockCount || 0;
   dashboardRepairCountElement.textContent = stats.repairCount || 0;
@@ -875,8 +888,8 @@ function renderDashboard(overview) {
   dashboardAccessoryCountElement.textContent = stats.accessoryCount || 0;
   dashboardPurchasedThisYearCountElement.textContent = stats.purchasedThisYearCount || 0;
 
-  renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel);
-  renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel);
+  renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel, getAssetStatusTone);
+  renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel, getConditionStatusTone);
   renderBreakdownList(dashboardDepartmentList, overview?.byDepartment || [], localizeDepartmentName);
 
   renderDashboardTable(recentPurchasesTableBody, overview?.recentPurchases || [], (record, row) => {
@@ -902,6 +915,179 @@ function renderDashboard(overview) {
     appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
     appendCell(row, "Yangilangan", formatDate(record.updatedAt));
   });
+}
+
+function renderOperationalScenarios(stats) {
+  const totalRecords = Number(stats.totalRecords) || 0;
+  const inUseCount = Number(stats.inUseCount) || 0;
+  const inStockCount = Number(stats.inStockCount) || 0;
+  const activeCatalogDevices = state.devices.filter((device) => device.isActive).length;
+  const activeCatalogDepartments = state.departments.filter((department) => department.isActive).length;
+  const attentionCount = Number(stats.attentionCount) || 0;
+  const activeUsers = state.users.filter((user) => user.isActive).length;
+  const auditCount = state.auditLogs.length;
+
+  if (scenarioEmployeeMetricElement) {
+    scenarioEmployeeMetricElement.textContent = totalRecords
+      ? `${totalRecords} ta mas'ul yozuv mavjud`
+      : "Yangi xodim kartasi tayyor";
+  }
+
+  if (scenarioAssignmentMetricElement) {
+    scenarioAssignmentMetricElement.textContent = totalRecords
+      ? `${inUseCount} ta faol, ${inStockCount} ta zaxira`
+      : "Biriktirish oqimi tayyor";
+  }
+
+  if (scenarioDeviceMetricElement) {
+    scenarioDeviceMetricElement.textContent = activeCatalogDevices
+      ? `${activeCatalogDevices} ta faol texnika katalogda`
+      : "Yangi texnika katalogga kiritiladi";
+  }
+
+  if (scenarioDepartmentMetricElement) {
+    scenarioDepartmentMetricElement.textContent = activeCatalogDepartments
+      ? `${activeCatalogDepartments} ta bo'lim nazoratda`
+      : "Bo'lim tuzilmasi kiritilmoqda";
+  }
+
+  if (scenarioUserMetricElement) {
+    scenarioUserMetricElement.textContent = activeUsers
+      ? `${activeUsers} ta faol foydalanuvchi`
+      : "Ruxsat oqimi tayyor";
+  }
+
+  if (scenarioAuditMetricElement) {
+    scenarioAuditMetricElement.textContent = attentionCount
+      ? `${attentionCount} ta risk signali kuzatuvda`
+      : auditCount
+        ? `${auditCount} ta oxirgi log ko'rinmoqda`
+        : "Nazorat oynasi tayyor";
+  }
+}
+
+function syncOperationalInterface() {
+  const blockedByPassword = Boolean(state.user?.mustChangePassword);
+
+  scenarioActionButtons.forEach((button) => {
+    const action = button.dataset.scenarioAction || "";
+    const allowed = isScenarioAllowed(action);
+    button.disabled = blockedByPassword || !allowed;
+    button.classList.toggle("is-disabled", blockedByPassword || !allowed);
+    button.title = blockedByPassword
+      ? "Avval parolni yangilang, keyin operatsion stsenariylar ochiladi."
+      : allowed
+        ? ""
+        : getScenarioDisabledMessage(action);
+  });
+}
+
+function isScenarioAllowed(action) {
+  switch (action) {
+    case "employee":
+    case "assignment":
+      return Boolean(state.permissions.manageInventory);
+    case "department":
+    case "device":
+      return Boolean(state.permissions.manageCatalogs);
+    case "user":
+      return Boolean(state.permissions.manageUsers);
+    case "audit":
+      return Boolean(state.permissions.viewAudit);
+    default:
+      return true;
+  }
+}
+
+function getScenarioDisabledMessage(action) {
+  switch (action) {
+    case "employee":
+    case "assignment":
+      return "Bu stsenariy uchun inventar boshqaruv huquqi kerak.";
+    case "department":
+    case "device":
+      return "Bu stsenariy uchun kataloglarni boshqarish huquqi kerak.";
+    case "user":
+      return "Bu stsenariy uchun foydalanuvchilarni boshqarish huquqi kerak.";
+    case "audit":
+      return "Bu stsenariy uchun audit logni ko'rish huquqi kerak.";
+    default:
+      return "Bu stsenariy hozir mavjud emas.";
+  }
+}
+
+function runScenario(action) {
+  if (state.user?.mustChangePassword) {
+    showStatus("Avval parolni yangilang, keyin operatsion stsenariylar ochiladi.", "error");
+    activateTab("settings");
+    return;
+  }
+
+  if (!isScenarioAllowed(action)) {
+    showStatus(getScenarioDisabledMessage(action), "error");
+    return;
+  }
+
+  switch (action) {
+    case "employee":
+      resetInventoryForm();
+      resetQuickDepartmentForm();
+      resetQuickDeviceForm();
+      activateTab("inventory");
+      showStatus("Hodim stsenariysi ochildi. Avval F.I.Sh. va bo'lim ma'lumotlarini kiriting.");
+      focusAndRevealField(firstNameInput);
+      break;
+    case "assignment":
+      resetInventoryForm();
+      resetQuickDepartmentForm();
+      resetQuickDeviceForm();
+      activateTab("inventory");
+      showStatus("Inventar biriktirish stsenariysi ochildi. Xodim, bo'lim va texnikani to'ldiring.");
+      focusAndRevealField(departmentSelect);
+      break;
+    case "device":
+      resetDeviceForm();
+      activateTab("catalogs");
+      showStatus("Texnika qo'shish stsenariysi ochildi. Yangi qurilmani katalogga kiriting.");
+      focusAndRevealField(deviceCatalogNameInput);
+      break;
+    case "department":
+      resetDepartmentForm();
+      activateTab("catalogs");
+      showStatus("Bo'lim qo'shish stsenariysi ochildi. Bo'lim nomi va kodini kiriting.");
+      focusAndRevealField(departmentNameInput);
+      break;
+    case "user":
+      resetUserForm();
+      activateTab("users");
+      showStatus("Foydalanuvchi qo'shish stsenariysi ochildi. Rol va login ma'lumotlarini kiriting.");
+      focusAndRevealField(userFullNameInput);
+      break;
+    case "audit":
+      activateTab("audit");
+      showStatus("Audit nazorati ochildi. Oxirgi harakatlar shu yerda yangilanadi.");
+      focusAndRevealField(auditSearchInput);
+      break;
+    default:
+      break;
+  }
+}
+
+function focusAndRevealField(element) {
+  if (!element) {
+    return;
+  }
+
+  window.setTimeout(() => {
+    element.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+
+    if (typeof element.focus === "function") {
+      element.focus({ preventScroll: true });
+    }
+  }, 90);
 }
 
 function renderHeroVisualization(stats, overview) {
@@ -930,6 +1116,7 @@ function renderHeroVisualization(stats, overview) {
   heroLeadingStatusPillElement.textContent = leadingStatus
     ? `${leadingStatus.label} yetakchi`
     : "Yozuv kutilmoqda";
+  setAccentTone(heroLeadingStatusPillElement, leadingStatus ? getAssetStatusTone(leadingStatus.value) : getNeutralTone());
   heroEmptyNoteElement.classList.toggle("hidden", Boolean(totalRecords));
   renderHeroStatusLegend(statusItems, totalRecords);
   heroInUsePercentElement.textContent = formatPercent(activeDevices, totalRecords);
@@ -951,6 +1138,14 @@ function renderHeroVisualization(stats, overview) {
   heroExecutiveBadgeElement.textContent = totalRecords
     ? `${statusItems.length || 1} yo'nalish faol`
     : "Yozuv kutilmoqda";
+  setAccentTone(
+    heroExecutiveBadgeElement,
+    attentionCount > 0
+      ? getAssetStatusTone("repair")
+      : leadingStatus
+        ? getAssetStatusTone(leadingStatus.value)
+        : getNeutralTone()
+  );
   heroExecutiveSummaryElement.textContent = totalRecords
     ? buildHeroExecutiveSummary({
         attentionCount,
@@ -975,7 +1170,8 @@ function renderHeroVisualization(stats, overview) {
     overview?.byCondition || [],
     totalRecords,
     getConditionStatusLabel,
-    "Texnika ahvoli bo'yicha statistika hali shakllanmagan."
+    "Texnika ahvoli bo'yicha statistika hali shakllanmagan.",
+    getConditionStatusTone
   );
 
   setHeroMeter(heroDepartmentMeterElement, totalRecords ? ((primaryDepartment?.total || 0) / totalRecords) * 100 : 0);
@@ -1143,7 +1339,7 @@ function renderHeroStatusLegend(items, totalRecords) {
   });
 }
 
-function renderHeroRankList(container, items, totalRecords, labelFormatter, emptyText) {
+function renderHeroRankList(container, items, totalRecords, labelFormatter, emptyText, colorResolver = null) {
   container.innerHTML = "";
 
   if (!items.length) {
@@ -1157,8 +1353,15 @@ function renderHeroRankList(container, items, totalRecords, labelFormatter, empt
   items.slice(0, 3).forEach((item, index) => {
     const total = Number(item.total) || 0;
     const share = totalRecords ? Math.round((total / totalRecords) * 100) : 0;
+    const tone = colorResolver ? colorResolver(item.value || item.label || "") : null;
     const row = document.createElement("div");
     row.className = "hero-rank-item";
+
+    if (tone) {
+      row.style.setProperty("--rank-gradient", tone.gradient);
+      row.style.setProperty("--rank-soft", tone.soft);
+      row.style.setProperty("--rank-solid", tone.solid);
+    }
 
     const header = document.createElement("div");
     header.className = "hero-rank-item__header";
@@ -1214,7 +1417,7 @@ function formatPercent(value, total) {
   return `${Math.round((Number(value) / Number(total)) * 100)}%`;
 }
 
-function renderBreakdownList(container, items, labelFormatter) {
+function renderBreakdownList(container, items, labelFormatter, colorResolver = null) {
   container.innerHTML = "";
 
   if (!items.length) {
@@ -1228,8 +1431,10 @@ function renderBreakdownList(container, items, labelFormatter) {
   const maxValue = Math.max(...items.map((item) => item.total || 0), 1);
 
   items.forEach((item) => {
+    const tone = colorResolver ? colorResolver(item.value || item.label || "") : getNeutralTone();
     const row = document.createElement("div");
     row.className = "breakdown-item";
+    row.style.setProperty("--breakdown-accent", tone.soft);
 
     const header = document.createElement("div");
     header.className = "breakdown-item__header";
@@ -1241,6 +1446,7 @@ function renderBreakdownList(container, items, labelFormatter) {
     const value = document.createElement("strong");
     value.className = "breakdown-item__value";
     value.textContent = item.total || 0;
+    value.style.color = tone.solid;
 
     const track = document.createElement("div");
     track.className = "breakdown-item__track";
@@ -1248,6 +1454,7 @@ function renderBreakdownList(container, items, labelFormatter) {
     const bar = document.createElement("span");
     bar.className = "breakdown-item__bar";
     bar.style.width = `${Math.max(8, Math.round(((item.total || 0) / maxValue) * 100))}%`;
+    bar.style.background = tone.gradient;
 
     header.append(label, value);
     track.appendChild(bar);
@@ -2128,6 +2335,8 @@ function getConditionStatusLabel(value) {
 
 function getAssetStatusClass(value) {
   switch (value) {
+    case "in_use":
+      return "";
     case "repair":
       return "tag--danger";
     case "reserved":
@@ -2142,18 +2351,7 @@ function getAssetStatusClass(value) {
 }
 
 function getAssetStatusColor(value) {
-  switch (value) {
-    case "in_stock":
-      return "#10b981";
-    case "repair":
-      return "#f59e0b";
-    case "reserved":
-      return "#06b6d4";
-    case "retired":
-      return "#64748b";
-    default:
-      return "#2563eb";
-  }
+  return getAssetStatusTone(value).solid;
 }
 
 function getConditionStatusClass(value) {
@@ -2167,6 +2365,109 @@ function getConditionStatusClass(value) {
     default:
       return "";
   }
+}
+
+function getNeutralTone() {
+  return {
+    gradient: "linear-gradient(90deg, #2563eb, #60a5fa)",
+    line: "rgba(37, 99, 235, 0.24)",
+    soft: "rgba(37, 99, 235, 0.16)",
+    solid: "#2563eb",
+  };
+}
+
+function getAssetStatusTone(value) {
+  switch (value) {
+    case "in_use":
+      return {
+        gradient: "linear-gradient(90deg, #16a34a, #4ade80)",
+        line: "rgba(22, 163, 74, 0.24)",
+        soft: "rgba(22, 163, 74, 0.18)",
+        solid: "#16a34a",
+      };
+    case "in_stock":
+      return {
+        gradient: "linear-gradient(90deg, #0284c7, #38bdf8)",
+        line: "rgba(2, 132, 199, 0.24)",
+        soft: "rgba(2, 132, 199, 0.18)",
+        solid: "#0284c7",
+      };
+    case "repair":
+      return {
+        gradient: "linear-gradient(90deg, #dc2626, #fb7185)",
+        line: "rgba(220, 38, 38, 0.24)",
+        soft: "rgba(220, 38, 38, 0.18)",
+        solid: "#dc2626",
+      };
+    case "reserved":
+      return {
+        gradient: "linear-gradient(90deg, #d97706, #fbbf24)",
+        line: "rgba(217, 119, 6, 0.24)",
+        soft: "rgba(217, 119, 6, 0.18)",
+        solid: "#d97706",
+      };
+    case "retired":
+      return {
+        gradient: "linear-gradient(90deg, #64748b, #94a3b8)",
+        line: "rgba(100, 116, 139, 0.24)",
+        soft: "rgba(100, 116, 139, 0.18)",
+        solid: "#64748b",
+      };
+    default:
+      return getNeutralTone();
+  }
+}
+
+function getConditionStatusTone(value) {
+  switch (value) {
+    case "new":
+      return {
+        gradient: "linear-gradient(90deg, #0891b2, #22d3ee)",
+        line: "rgba(8, 145, 178, 0.24)",
+        soft: "rgba(8, 145, 178, 0.18)",
+        solid: "#0891b2",
+      };
+    case "excellent":
+      return {
+        gradient: "linear-gradient(90deg, #10b981, #34d399)",
+        line: "rgba(16, 185, 129, 0.24)",
+        soft: "rgba(16, 185, 129, 0.18)",
+        solid: "#10b981",
+      };
+    case "good":
+      return {
+        gradient: "linear-gradient(90deg, #2563eb, #60a5fa)",
+        line: "rgba(37, 99, 235, 0.24)",
+        soft: "rgba(37, 99, 235, 0.18)",
+        solid: "#2563eb",
+      };
+    case "fair":
+      return {
+        gradient: "linear-gradient(90deg, #d97706, #fbbf24)",
+        line: "rgba(217, 119, 6, 0.24)",
+        soft: "rgba(217, 119, 6, 0.18)",
+        solid: "#d97706",
+      };
+    case "damaged":
+      return {
+        gradient: "linear-gradient(90deg, #dc2626, #fb7185)",
+        line: "rgba(220, 38, 38, 0.24)",
+        soft: "rgba(220, 38, 38, 0.18)",
+        solid: "#dc2626",
+      };
+    default:
+      return getNeutralTone();
+  }
+}
+
+function setAccentTone(element, tone) {
+  if (!element || !tone) {
+    return;
+  }
+
+  element.style.setProperty("--accent-color", tone.solid);
+  element.style.setProperty("--accent-soft", tone.soft);
+  element.style.setProperty("--accent-line", tone.line || tone.soft);
 }
 
 function capitalize(value) {

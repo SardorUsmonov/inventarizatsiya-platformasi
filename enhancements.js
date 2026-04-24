@@ -491,6 +491,9 @@
       attachmentPickButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       attachmentUploadButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       serviceLogSubmitButton.disabled = !state.permissions.manageService || mustChangePassword || !enhancementState.detailRecordId;
+      if (typeof syncOperationalInterface === "function") {
+        syncOperationalInterface();
+      }
 
       if (mustChangePassword && state.activeTab !== "settings") {
         activateTab("settings");
@@ -1308,14 +1311,49 @@
   function applyStoredTheme() {
     const theme = window.localStorage.getItem(STORAGE_KEYS.theme) || "light";
     document.body.dataset.theme = theme;
-    themeToggleButton.textContent = theme === "dark" ? "Kunduzgi rejim" : "Tungi rejim";
+    renderThemeToggleState(theme);
   }
 
   function toggleTheme() {
     const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
     document.body.dataset.theme = nextTheme;
     window.localStorage.setItem(STORAGE_KEYS.theme, nextTheme);
-    themeToggleButton.textContent = nextTheme === "dark" ? "Kunduzgi rejim" : "Tungi rejim";
+    renderThemeToggleState(nextTheme);
+  }
+
+  function renderThemeToggleState(theme) {
+    const isDark = theme === "dark";
+    const currentLabel = isDark ? "Tungi rejim" : "Kunduzgi rejim";
+    const currentState = isDark ? "Oy faol" : "Quyosh faol";
+    const nextLabel = isDark ? "kunduzgi rejimga o'tish" : "tungi rejimga o'tish";
+
+    themeToggleButton.innerHTML = `
+      <span class="theme-toggle__icon" aria-hidden="true">${getThemeIconSvg(theme)}</span>
+      <span class="theme-toggle__copy">
+        <span class="theme-toggle__label">${currentLabel}</span>
+        <span class="theme-toggle__state">${currentState}</span>
+      </span>
+    `;
+    themeToggleButton.dataset.themeMode = theme;
+    themeToggleButton.setAttribute("aria-label", `${currentLabel}. Bosilsa ${nextLabel}.`);
+    themeToggleButton.title = `${currentLabel}. Bosilsa ${nextLabel}.`;
+  }
+
+  function getThemeIconSvg(theme) {
+    if (theme === "dark") {
+      return `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3c-.06.33-.1.67-.1 1.02A8 8 0 0 0 19 12c.35 0 .69-.03 1.02-.1Z"></path>
+        </svg>
+      `;
+    }
+
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.2"></circle>
+        <path d="M12 2.5v2.2M12 19.3v2.2M4.7 4.7l1.6 1.6M17.7 17.7l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.7 19.3l1.6-1.6M17.7 6.3l1.6-1.6"></path>
+      </svg>
+    `;
   }
 
   function createEmptyDetailRow(text) {

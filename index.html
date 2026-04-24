@@ -113,7 +113,7 @@
               <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
             </div>
 
-            <button class="ghost-button" id="themeToggleButton" type="button">Tungi rejim</button>
+            <button class="ghost-button theme-toggle" id="themeToggleButton" type="button" aria-live="polite">Tungi rejim</button>
 
             <div class="global-search" id="globalSearchBox">
               <label class="search search--compact">
@@ -149,6 +149,61 @@
                 <span class="hero-chip">Excel tayyor</span>
                 <span class="hero-chip">Audit ko'rinishi</span>
               </div>
+
+              <section class="hero-operations" aria-labelledby="heroOperationsTitle">
+                <div class="hero-operations__intro">
+                  <p class="panel__eyebrow">Operatsion stsenariylar</p>
+                  <h2 id="heroOperationsTitle">Bir kliklik ish stsenariylari</h2>
+                  <p class="hero-operations__text">
+                    Kundalik ishlarda hisobotdan ko'ra amaliy boshqaruv muhim. Har bir tugma kerakli forma,
+                    katalog yoki nazorat bo'limini to'g'ridan-to'g'ri ochadi.
+                  </p>
+                </div>
+
+                <div class="scenario-grid">
+                  <button class="scenario-card scenario-card--success" data-scenario-action="employee" type="button">
+                    <span class="scenario-card__code">HD</span>
+                    <strong class="scenario-card__title">Hodim qo'shish</strong>
+                    <span class="scenario-card__text">Mas'ul xodim kartasini oching va biriktirishga tayyorlang.</span>
+                    <span class="scenario-card__metric" id="scenarioEmployeeMetric">Yozuv kutilmoqda</span>
+                  </button>
+
+                  <button class="scenario-card scenario-card--brand" data-scenario-action="assignment" type="button">
+                    <span class="scenario-card__code">IN</span>
+                    <strong class="scenario-card__title">Inventar biriktirish</strong>
+                    <span class="scenario-card__text">Texnikani xodimga biriktirish uchun to'liq inventar formasini oching.</span>
+                    <span class="scenario-card__metric" id="scenarioAssignmentMetric">Biriktirish oqimi tayyor</span>
+                  </button>
+
+                  <button class="scenario-card scenario-card--info" data-scenario-action="device" type="button">
+                    <span class="scenario-card__code">TX</span>
+                    <strong class="scenario-card__title">Texnika qo'shish</strong>
+                    <span class="scenario-card__text">Yangi model, kategoriya yoki qurilmani katalogga kiriting.</span>
+                    <span class="scenario-card__metric" id="scenarioDeviceMetric">Katalog tayyor</span>
+                  </button>
+
+                  <button class="scenario-card scenario-card--warning" data-scenario-action="department" type="button">
+                    <span class="scenario-card__code">BL</span>
+                    <strong class="scenario-card__title">Bo'lim qo'shish</strong>
+                    <span class="scenario-card__text">Yangi bo'lim yoki sohani oching va kod bilan saqlang.</span>
+                    <span class="scenario-card__metric" id="scenarioDepartmentMetric">Tuzilma nazorati</span>
+                  </button>
+
+                  <button class="scenario-card scenario-card--muted" data-scenario-action="user" type="button">
+                    <span class="scenario-card__code">FS</span>
+                    <strong class="scenario-card__title">Foydalanuvchi qo'shish</strong>
+                    <span class="scenario-card__text">Login, rol va xavfsizlik qoidalari bilan yangi foydalanuvchi yarating.</span>
+                    <span class="scenario-card__metric" id="scenarioUserMetric">Ruxsat oqimi</span>
+                  </button>
+
+                  <button class="scenario-card scenario-card--danger" data-scenario-action="audit" type="button">
+                    <span class="scenario-card__code">LG</span>
+                    <strong class="scenario-card__title">Audit nazorati</strong>
+                    <span class="scenario-card__text">Oxirgi harakatlar, xavf signallari va loglarni darrov tekshiring.</span>
+                    <span class="scenario-card__metric" id="scenarioAuditMetric">Nazorat oynasi</span>
+                  </button>
+                </div>
+              </section>
 
               <div class="hero-insight-grid">
                 <article class="hero-focus-card hero-focus-card--featured">
@@ -249,13 +304,13 @@
                       <span class="hero-kpi-card__hint" id="heroRiskPercentSummary">Riskdagi yozuvlar shu yerda jamlanadi.</span>
                     </article>
 
-                    <article class="hero-kpi-card">
+                    <article class="hero-kpi-card hero-kpi-card--warning">
                       <span class="hero-kpi-card__label">Kafolat yaqin</span>
                       <strong class="hero-kpi-card__value" id="heroWarrantyInline">0</strong>
                       <span class="hero-kpi-card__hint" id="heroWarrantyInlineSummary">30 kun ichidagi tugashlar ko'rinadi.</span>
                     </article>
 
-                    <article class="hero-kpi-card">
+                    <article class="hero-kpi-card hero-kpi-card--info">
                       <span class="hero-kpi-card__label">Qo'shimcha to'plam</span>
                       <strong class="hero-kpi-card__value" id="heroAccessoryInline">0</strong>
                       <span class="hero-kpi-card__hint" id="heroAccessoryInlineSummary">Dock va boshqa jamlanmalar soni.</span>
@@ -287,7 +342,7 @@
                 </div>
 
                 <div class="hero-metrics">
-                  <article class="hero-metric-card">
+                  <article class="hero-metric-card hero-metric-card--brand">
                     <div class="hero-metric-card__top">
                       <span class="hero-metric-card__label">Bo'limlar</span>
                       <strong class="hero-metric-card__value" id="totalDepartments">0</strong>
@@ -298,7 +353,7 @@
                     <p class="hero-metric-card__hint" id="heroDepartmentSummary">Aktiv katalog segmentlari</p>
                   </article>
 
-                  <article class="hero-metric-card">
+                  <article class="hero-metric-card hero-metric-card--success">
                     <div class="hero-metric-card__top">
                       <span class="hero-metric-card__label">Aktiv texnikalar</span>
                       <strong class="hero-metric-card__value" id="activeDevices">0</strong>
@@ -309,7 +364,7 @@
                     <p class="hero-metric-card__hint" id="heroActiveSummary">Biriktirishga tayyor qurilmalar</p>
                   </article>
 
-                  <article class="hero-metric-card">
+                  <article class="hero-metric-card hero-metric-card--danger">
                     <div class="hero-metric-card__top">
                       <span class="hero-metric-card__label">Riskdagi aktivlar</span>
                       <strong class="hero-metric-card__value" id="heroAttentionCount">0</strong>
@@ -340,27 +395,27 @@
                   <strong class="dashboard-card__value" id="dashboardInUseCount">0</strong>
                   <span class="dashboard-card__hint">Xodimlarga biriktirilgan aktivlar</span>
                 </article>
-                <article class="dashboard-card">
+                <article class="dashboard-card dashboard-card--info">
                   <span class="dashboard-card__label">Zaxirada</span>
                   <strong class="dashboard-card__value" id="dashboardInStockCount">0</strong>
                   <span class="dashboard-card__hint">Taqsimlashga tayyor texnikalar</span>
                 </article>
-                <article class="dashboard-card">
+                <article class="dashboard-card dashboard-card--danger">
                   <span class="dashboard-card__label">Ta'mirda</span>
                   <strong class="dashboard-card__value" id="dashboardRepairCount">0</strong>
                   <span class="dashboard-card__hint">Servisga e'tibor talab qiladiganlari</span>
                 </article>
-                <article class="dashboard-card">
+                <article class="dashboard-card dashboard-card--warning">
                   <span class="dashboard-card__label">Kafolat yaqin</span>
                   <strong class="dashboard-card__value" id="dashboardWarrantyCount">0</strong>
                   <span class="dashboard-card__hint">30 kun ichida tugashi mumkin</span>
                 </article>
-                <article class="dashboard-card">
+                <article class="dashboard-card dashboard-card--success">
                   <span class="dashboard-card__label">Qo'shimcha texnikali</span>
                   <strong class="dashboard-card__value" id="dashboardAccessoryCount">0</strong>
                   <span class="dashboard-card__hint">Dock, sichqoncha, sumka va boshqalar</span>
                 </article>
-                <article class="dashboard-card">
+                <article class="dashboard-card dashboard-card--brand">
                   <span class="dashboard-card__label">Joriy yil xaridlari</span>
                   <strong class="dashboard-card__value" id="dashboardPurchasedThisYearCount">0</strong>
                   <span class="dashboard-card__hint">Yil boshidan beri qo'shilgan aktivlar</span>
@@ -712,54 +767,90 @@
             </section>
 
             <section class="panel panel--list">
-              <div class="panel__header panel__header--spread">
+              <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Inventar ro'yxati</p>
                   <h2>Joriy yozuvlar</h2>
                   <p class="panel__subtext" id="tableSummary">Yozuvlar yuklanmoqda...</p>
                 </div>
+              </div>
 
-                <div class="toolbar">
-                  <label class="search">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
-                    </svg>
-                    <input id="searchInput" type="search" placeholder="Ism, bo'lim, texnika yoki egasi bo'yicha qidiring">
-                  </label>
-                  <select class="toolbar-select" id="filterDepartmentId"></select>
-                  <select class="toolbar-select" id="filterDeviceId"></select>
-                  <select class="toolbar-select" id="filterAssetStatus"></select>
-                  <select class="toolbar-select" id="filterConditionStatus"></select>
-                  <select class="toolbar-select" id="sortBySelect">
-                    <option value="updatedAt">Saralash: Yangilangan sana</option>
-                    <option value="purchaseDate">Saralash: Xarid sanasi</option>
-                    <option value="warrantyUntil">Saralash: Kafolat</option>
-                    <option value="assetTag">Saralash: Aktiv tegi</option>
-                    <option value="currentHolder">Saralash: Joriy egasi</option>
-                    <option value="department">Saralash: Bo'lim</option>
-                  </select>
-                  <select class="toolbar-select" id="sortDirectionSelect">
-                    <option value="desc">Kamayish</option>
-                    <option value="asc">O'sish</option>
-                  </select>
-                  <select class="toolbar-select" id="pageSizeSelect">
-                    <option value="10">10 / sahifa</option>
-                    <option value="25" selected>25 / sahifa</option>
-                    <option value="50">50 / sahifa</option>
-                    <option value="100">100 / sahifa</option>
-                  </select>
-                  <button class="secondary-button" id="refreshButton" type="button">Yangilash</button>
-                  <button class="secondary-button" id="saveFiltersButton" type="button">Filter saqlash</button>
-                  <button class="secondary-button" id="applySavedFiltersButton" type="button">Saqlanganni qo'llash</button>
-                  <button class="secondary-button" id="clearFiltersButton" type="button">Tozalash</button>
-                  <button class="secondary-button hidden" id="previewImportButton" type="button">Importni ko'rib chiqish</button>
-                  <button class="secondary-button hidden" id="downloadTemplateButton" type="button">Namuna fayl</button>
-                  <button class="secondary-button hidden" id="importButton" type="button">Exceldan import</button>
-                  <button class="secondary-button hidden" id="exportExcelButton" type="button">Excel eksport</button>
-                  <button class="secondary-button hidden" id="exportCsvButton" type="button">CSV eksport</button>
-                  <input class="hidden" id="importFileInput" type="file" accept=".xlsx,.xlsm,.xls">
-                  <input class="hidden" id="previewImportFileInput" type="file" accept=".xlsx,.xlsm,.xls">
-                </div>
+              <div class="operations-shell">
+                <section class="operations-group">
+                  <div class="operations-group__header">
+                    <p class="panel__eyebrow">Tezkor amallar</p>
+                    <h3>Operatsion boshqaruv</h3>
+                    <p class="panel__subtext">Yangi yozuv, xodim, bo'lim yoki texnika kiritishni bevosita ish oqimidan boshlang.</p>
+                  </div>
+
+                  <div class="toolbar toolbar--operations">
+                    <button class="primary-button" data-scenario-action="assignment" type="button">Yangi inventar</button>
+                    <button class="secondary-button" data-scenario-action="employee" type="button">Hodim kartasi</button>
+                    <button class="secondary-button" data-scenario-action="device" type="button">Texnika qo'shish</button>
+                    <button class="secondary-button" data-scenario-action="department" type="button">Bo'lim qo'shish</button>
+                    <button class="ghost-button" id="refreshButton" type="button">Yangilash</button>
+                  </div>
+                </section>
+
+                <section class="operations-group">
+                  <div class="operations-group__header">
+                    <p class="panel__eyebrow">Filtrlash va ko'rinish</p>
+                    <h3>Joriy ish maydoni</h3>
+                    <p class="panel__subtext">Qidiruv, bo'lim, texnika, holat va saralashlar bilan operatsion ro'yxatni boshqaring.</p>
+                  </div>
+
+                  <div class="toolbar toolbar--filters">
+                    <label class="search">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
+                      </svg>
+                      <input id="searchInput" type="search" placeholder="Ism, bo'lim, texnika yoki egasi bo'yicha qidiring">
+                    </label>
+                    <select class="toolbar-select" id="filterDepartmentId"></select>
+                    <select class="toolbar-select" id="filterDeviceId"></select>
+                    <select class="toolbar-select" id="filterAssetStatus"></select>
+                    <select class="toolbar-select" id="filterConditionStatus"></select>
+                    <select class="toolbar-select" id="sortBySelect">
+                      <option value="updatedAt">Saralash: Yangilangan sana</option>
+                      <option value="purchaseDate">Saralash: Xarid sanasi</option>
+                      <option value="warrantyUntil">Saralash: Kafolat</option>
+                      <option value="assetTag">Saralash: Aktiv tegi</option>
+                      <option value="currentHolder">Saralash: Joriy egasi</option>
+                      <option value="department">Saralash: Bo'lim</option>
+                    </select>
+                    <select class="toolbar-select" id="sortDirectionSelect">
+                      <option value="desc">Kamayish</option>
+                      <option value="asc">O'sish</option>
+                    </select>
+                    <select class="toolbar-select" id="pageSizeSelect">
+                      <option value="10">10 / sahifa</option>
+                      <option value="25" selected>25 / sahifa</option>
+                      <option value="50">50 / sahifa</option>
+                      <option value="100">100 / sahifa</option>
+                    </select>
+                  </div>
+                </section>
+
+                <section class="operations-group">
+                  <div class="operations-group__header">
+                    <p class="panel__eyebrow">Ishchi vositalar</p>
+                    <h3>Import, eksport va tayyor ko'rinishlar</h3>
+                    <p class="panel__subtext">Saqlangan filtrlar, Excel oqimi va tezkor eksportlar shu blokda boshqariladi.</p>
+                  </div>
+
+                  <div class="toolbar toolbar--support">
+                    <button class="secondary-button" id="saveFiltersButton" type="button">Filter saqlash</button>
+                    <button class="secondary-button" id="applySavedFiltersButton" type="button">Saqlanganni qo'llash</button>
+                    <button class="secondary-button" id="clearFiltersButton" type="button">Tozalash</button>
+                    <button class="secondary-button hidden" id="previewImportButton" type="button">Importni ko'rib chiqish</button>
+                    <button class="secondary-button hidden" id="downloadTemplateButton" type="button">Namuna fayl</button>
+                    <button class="secondary-button hidden" id="importButton" type="button">Exceldan import</button>
+                    <button class="secondary-button hidden" id="exportExcelButton" type="button">Excel eksport</button>
+                    <button class="secondary-button hidden" id="exportCsvButton" type="button">CSV eksport</button>
+                    <input class="hidden" id="importFileInput" type="file" accept=".xlsx,.xlsm,.xls">
+                    <input class="hidden" id="previewImportFileInput" type="file" accept=".xlsx,.xlsm,.xls">
+                  </div>
+                </section>
               </div>
 
               <section class="inline-panel hidden" id="importPreviewPanel">
