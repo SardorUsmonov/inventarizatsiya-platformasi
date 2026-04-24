@@ -88,6 +88,14 @@ const heroWarrantyInlineElement = document.querySelector("#heroWarrantyInline");
 const heroWarrantyInlineSummaryElement = document.querySelector("#heroWarrantyInlineSummary");
 const heroAccessoryInlineElement = document.querySelector("#heroAccessoryInline");
 const heroAccessoryInlineSummaryElement = document.querySelector("#heroAccessoryInlineSummary");
+const heroExecutiveBadgeElement = document.querySelector("#heroExecutiveBadge");
+const heroExecutiveSummaryElement = document.querySelector("#heroExecutiveSummary");
+const heroExecutiveTotalElement = document.querySelector("#heroExecutiveTotal");
+const heroExecutiveUsageElement = document.querySelector("#heroExecutiveUsage");
+const heroExecutiveCoverageElement = document.querySelector("#heroExecutiveCoverage");
+const heroExecutiveAttentionElement = document.querySelector("#heroExecutiveAttention");
+const heroDepartmentLeadersElement = document.querySelector("#heroDepartmentLeaders");
+const heroConditionLeadersElement = document.querySelector("#heroConditionLeaders");
 const heroDepartmentMeterElement = document.querySelector("#heroDepartmentMeter");
 const heroDepartmentSummaryElement = document.querySelector("#heroDepartmentSummary");
 const heroActiveMeterElement = document.querySelector("#heroActiveMeter");
@@ -929,6 +937,35 @@ function renderHeroVisualization(stats, overview) {
   heroAccessoryInlineSummaryElement.textContent = totalRecords
     ? `${formatPercent(accessoryCount, totalRecords)} yozuvda qo'shimcha texnika bor.`
     : "Dock va boshqa jamlanmalar soni.";
+  heroExecutiveBadgeElement.textContent = totalRecords
+    ? `${statusItems.length || 1} yo'nalish faol`
+    : "Yozuv kutilmoqda";
+  heroExecutiveSummaryElement.textContent = totalRecords
+    ? buildHeroExecutiveSummary({
+        attentionCount,
+        leadingStatus,
+        primaryDepartment,
+        totalRecords,
+      })
+    : "Yangi aktivlar qo'shilgach, bu yerda korxona moddiy bazasining asosiy signal va ustuvor yo'nalishlari jamlanadi.";
+  heroExecutiveTotalElement.textContent = totalRecords;
+  heroExecutiveUsageElement.textContent = formatPercent(activeDevices, totalRecords);
+  heroExecutiveCoverageElement.textContent = totalDepartments;
+  heroExecutiveAttentionElement.textContent = attentionCount;
+  renderHeroRankList(
+    heroDepartmentLeadersElement,
+    overview?.byDepartment || [],
+    totalRecords,
+    localizeDepartmentName,
+    "Bo'limlar bo'yicha statistika hali shakllanmagan."
+  );
+  renderHeroRankList(
+    heroConditionLeadersElement,
+    overview?.byCondition || [],
+    totalRecords,
+    getConditionStatusLabel,
+    "Texnika ahvoli bo'yicha statistika hali shakllanmagan."
+  );
 
   setHeroMeter(heroDepartmentMeterElement, totalRecords ? ((primaryDepartment?.total || 0) / totalRecords) * 100 : 0);
   heroDepartmentSummaryElement.textContent = totalDepartments
@@ -993,6 +1030,27 @@ function buildHeroStatusGradient(items, totalRecords) {
   });
 
   return `conic-gradient(from -90deg, ${segments.join(", ")})`;
+}
+
+function buildHeroExecutiveSummary({ attentionCount, leadingStatus, primaryDepartment, totalRecords }) {
+  const primaryDepartmentName = localizeDepartmentName(primaryDepartment?.label || "Bo'lim kiritilmagan");
+  const summaryParts = [
+    `${primaryDepartmentName} ${primaryDepartment?.total || 0} ta aktiv bilan boshqaruv markazida turibdi.`,
+  ];
+
+  if (leadingStatus) {
+    summaryParts.push(
+      `${leadingStatus.label} ${leadingStatus.total} ta yozuv bilan asosiy oqimni ushlab turibdi.`
+    );
+  }
+
+  if (attentionCount > 0) {
+    summaryParts.push(`${formatPercent(attentionCount, totalRecords)} ulush qo'shimcha nazorat talab qilmoqda.`);
+  } else {
+    summaryParts.push("Hozircha risk signalida turgan yozuvlar aniqlanmadi.");
+  }
+
+  return summaryParts.join(" ");
 }
 
 function getHeroChartAriaLabel(items, totalRecords) {
@@ -1071,6 +1129,60 @@ function renderHeroStatusLegend(items, totalRecords) {
     foot.append(track, percent);
     legendItem.append(head, foot);
     heroStatusLegendElement.appendChild(legendItem);
+  });
+}
+
+function renderHeroRankList(container, items, totalRecords, labelFormatter, emptyText) {
+  container.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "hero-rank-list__empty";
+    empty.textContent = emptyText;
+    container.appendChild(empty);
+    return;
+  }
+
+  items.slice(0, 3).forEach((item, index) => {
+    const total = Number(item.total) || 0;
+    const share = totalRecords ? Math.round((total / totalRecords) * 100) : 0;
+    const row = document.createElement("div");
+    row.className = "hero-rank-item";
+
+    const header = document.createElement("div");
+    header.className = "hero-rank-item__header";
+
+    const rank = document.createElement("span");
+    rank.className = "hero-rank-item__index";
+    rank.textContent = String(index + 1).padStart(2, "0");
+
+    const label = document.createElement("span");
+    label.className = "hero-rank-item__label";
+    label.textContent = labelFormatter(item.label || item.value || "-");
+
+    const value = document.createElement("strong");
+    value.className = "hero-rank-item__value";
+    value.textContent = total;
+
+    const footer = document.createElement("div");
+    footer.className = "hero-rank-item__footer";
+
+    const track = document.createElement("div");
+    track.className = "hero-rank-item__track";
+
+    const bar = document.createElement("span");
+    bar.className = "hero-rank-item__bar";
+    bar.style.width = `${Math.max(total > 0 ? 12 : 0, share)}%`;
+
+    const meta = document.createElement("span");
+    meta.className = "hero-rank-item__meta";
+    meta.textContent = totalRecords ? formatPercent(total, totalRecords) : `${total} ta`;
+
+    track.appendChild(bar);
+    footer.append(track, meta);
+    header.append(rank, label, value);
+    row.append(header, footer);
+    container.appendChild(row);
   });
 }
 
