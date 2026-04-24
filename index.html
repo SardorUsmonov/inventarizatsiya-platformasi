@@ -555,8 +555,35 @@
         </section>
 
         <section class="app-tab hidden" id="tabInventory">
-          <main class="workspace">
-            <section class="panel panel--form">
+          <main class="inventory-workspace">
+            <section class="panel inventory-switcher-panel">
+              <div class="panel__header panel__header--spread">
+                <div>
+                  <p class="panel__eyebrow">Inventar boshqaruvi</p>
+                  <h2>Alohida ish oynalari</h2>
+                  <p class="panel__subtext">Ro'yxat, qidiruv va Excel amallari nazorat oynasida; yangi yozuv kiritish esa alohida wizard oynasida bajariladi.</p>
+                </div>
+
+                <div class="inventory-segment" role="tablist" aria-label="Inventar ish oynasini tanlash">
+                  <button class="inventory-segment__button is-active" data-inventory-panel-target="list" type="button" role="tab" aria-controls="inventoryPanelList" aria-selected="true">
+                    <span class="inventory-segment__icon">RN</span>
+                    <span>
+                      <strong>Ro'yxat / nazorat</strong>
+                      <small>Qidiruv, filtr va amallar</small>
+                    </span>
+                  </button>
+                  <button class="inventory-segment__button" data-inventory-panel-target="create" type="button" role="tab" aria-controls="inventoryPanelCreate" aria-selected="false">
+                    <span class="inventory-segment__icon">YI</span>
+                    <span>
+                      <strong>Yangi inventar</strong>
+                      <small>4 qadamli kiritish</small>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel panel--form inventory-panel hidden" id="inventoryPanelCreate" data-inventory-panel="create" role="tabpanel">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Inventar forma</p>
@@ -860,7 +887,7 @@
               </section>
             </section>
 
-            <section class="panel panel--list">
+            <section class="panel panel--list inventory-panel is-active" id="inventoryPanelList" data-inventory-panel="list" role="tabpanel">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Inventar ro'yxati</p>

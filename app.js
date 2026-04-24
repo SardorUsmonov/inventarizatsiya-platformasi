@@ -16,6 +16,8 @@ const tabButtons = [...document.querySelectorAll("[data-tab-target]")];
 const usersTabButton = document.querySelector("#usersTabButton");
 const auditTabButton = document.querySelector("#auditTabButton");
 const inventoryForm = document.querySelector("#inventoryForm");
+const inventoryPanelButtons = [...document.querySelectorAll("[data-inventory-panel-target]")];
+const inventoryPanels = [...document.querySelectorAll("[data-inventory-panel]")];
 const inventoryAccessNote = document.querySelector("#inventoryAccessNote");
 const recordIdInput = document.querySelector("#recordId");
 const firstNameInput = document.querySelector("#firstName");
@@ -184,6 +186,7 @@ const state = {
   activeTab: "dashboard",
   auditAutoRefreshTimerId: 0,
   activeCatalogPanel: "departments",
+  activeInventoryPanel: "list",
   assetStatuses: [],
   auditDebounceId: 0,
   auditLastLoadedAt: "",
@@ -302,6 +305,10 @@ catalogPanelButtons.forEach((button) => {
   button.addEventListener("click", () => activateCatalogPanel(button.dataset.catalogPanelTarget));
 });
 
+inventoryPanelButtons.forEach((button) => {
+  button.addEventListener("click", () => activateInventoryPanel(button.dataset.inventoryPanelTarget));
+});
+
 inventoryWizardSteps.forEach((button) => {
   button.addEventListener("click", () => navigateInventoryWizardToStep(Number(button.dataset.inventoryStep)));
 });
@@ -345,6 +352,7 @@ inventoryForm.addEventListener("submit", async (event) => {
 
     resetInventoryForm();
     await loadInventory();
+    activateInventoryPanel("list");
     showStatus(recordId ? "Inventar yozuvi yangilandi." : "Yangi inventar yozuvi saqlandi.");
   } catch (error) {
     showStatus(error.message, "error");
@@ -1007,6 +1015,23 @@ function activateCatalogPanel(panelName) {
   });
 }
 
+function activateInventoryPanel(panelName) {
+  const normalizedPanel = panelName === "create" ? "create" : "list";
+  state.activeInventoryPanel = normalizedPanel;
+
+  inventoryPanelButtons.forEach((button) => {
+    const isActive = button.dataset.inventoryPanelTarget === normalizedPanel;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  inventoryPanels.forEach((panel) => {
+    const isActive = panel.dataset.inventoryPanel === normalizedPanel;
+    panel.classList.toggle("hidden", !isActive);
+    panel.classList.toggle("is-active", isActive);
+  });
+}
+
 function renderOperationalScenarios(stats) {
   const totalRecords = Number(stats.totalRecords) || 0;
   const inUseCount = Number(stats.inUseCount) || 0;
@@ -1124,6 +1149,7 @@ function runScenario(action) {
       resetQuickDepartmentForm();
       resetQuickDeviceForm();
       activateTab("inventory");
+      activateInventoryPanel("create");
       showStatus("Hodim stsenariysi ochildi. Avval F.I.Sh. va bo'lim ma'lumotlarini kiriting.");
       focusAndRevealField(firstNameInput);
       break;
@@ -1132,6 +1158,7 @@ function runScenario(action) {
       resetQuickDepartmentForm();
       resetQuickDeviceForm();
       activateTab("inventory");
+      activateInventoryPanel("create");
       showStatus("Inventar biriktirish stsenariysi ochildi. Xodim, bo'lim va texnikani to'ldiring.");
       focusAndRevealField(departmentSelect);
       break;
@@ -1935,6 +1962,7 @@ function prepareInventoryWizardForSubmit() {
 }
 
 function fillInventoryForm(record) {
+  activateInventoryPanel("create");
   recordIdInput.value = String(record.id);
   firstNameInput.value = record.firstName;
   lastNameInput.value = record.lastName;
@@ -1945,9 +1973,13 @@ function fillInventoryForm(record) {
   assetStatusSelect.value = record.assetStatus || state.assetStatuses[0]?.value || "";
   conditionStatusSelect.value = record.conditionStatus || state.conditionStatuses[0]?.value || "";
   purchaseDateInput.value = record.purchaseDate || "";
+  purchasePriceInput.value = record.purchasePrice ?? "";
   assignedAtInput.value = record.assignedAt || "";
   warrantyUntilInput.value = record.warrantyUntil || "";
   supplierInput.value = record.supplier || "";
+  branchInput.value = record.branch || "";
+  roomInput.value = record.room || "";
+  deskInput.value = record.desk || "";
   officeLocationInput.value = record.officeLocation || "";
   accessoriesInput.value = record.accessories || "";
   previousHolderInput.value = record.previousHolder === "-" ? "" : record.previousHolder;
@@ -2087,6 +2119,10 @@ function activateTab(tabName) {
 
   if (tabName === "catalogs") {
     activateCatalogPanel(state.activeCatalogPanel);
+  }
+
+  if (tabName === "inventory") {
+    activateInventoryPanel(state.activeInventoryPanel);
   }
 
   if (activeButton && window.matchMedia("(max-width: 780px)").matches && !appShell.classList.contains("hidden")) {
