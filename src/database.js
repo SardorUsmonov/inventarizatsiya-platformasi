@@ -12,6 +12,8 @@ const {
 const AUDIT_AUTO_REFRESH_SECONDS = 30;
 const AUDIT_RETENTION_OPTIONS = [30, 90, 180];
 const DEFAULT_AUDIT_RETENTION_DAYS = 90;
+const DEFAULT_AUTO_BACKUP_HOUR = 3;
+const DEFAULT_AUTO_BACKUP_KEEP_DAYS = 14;
 
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
@@ -20,7 +22,7 @@ function createDatabase(config) {
 
   const database = new DatabaseSync(config.databasePath);
   initializeDatabase(database);
-  seedSystemSettings(database);
+  seedSystemSettings(database, config);
   seedDefaultAdmin(database, config);
   seedRecommendedCatalogs(database);
   seedCatalogsFromInventory(database);
@@ -974,6 +976,9 @@ function createDatabase(config) {
     getAuditSettings() {
       return buildAuditSettings(database);
     },
+    getAutoBackupSettings() {
+      return buildAutoBackupSettings(database, config);
+    },
     getSystemMetrics() {
       const databaseStat = fs.existsSync(config.databasePath) ? fs.statSync(config.databasePath) : null;
       const auditSettings = buildAuditSettings(database);
@@ -982,8 +987,10 @@ function createDatabase(config) {
         activeSessions: this.countActiveSessions(),
         auditLogs: database.prepare("SELECT COUNT(*) AS total FROM audit_logs").get().total,
         auditRetentionDays: auditSettings.retentionDays,
+        autoBackup: buildAutoBackupSettings(database, config),
         attachmentFiles: database.prepare("SELECT COUNT(*) AS total FROM inventory_attachments").get().total,
         backupCount: database.prepare("SELECT COUNT(*) AS total FROM backup_runs").get().total,
+        backupStorageBytes: getDirectorySize(config.backupsDir),
         databaseSizeBytes: databaseStat?.size || 0,
         records: this.getInventoryStats(),
         serviceLogs: database.prepare("SELECT COUNT(*) AS total FROM inventory_service_logs").get().total,
@@ -1360,6 +1367,41 @@ function createDatabase(config) {
         deletedCount: pruneResult.deletedCount,
         prunedAt: pruneResult.prunedAt,
       };
+    },
+    setAutoBackupMeta(payload = {}) {
+      if ("enabled" in payload) {
+        setSettingValue(database, "auto_backup_enabled", payload.enabled ? "true" : "false");
+      }
+
+      if ("hour" in payload) {
+        setSettingValue(
+          database,
+          "auto_backup_hour",
+          String(normalizeAutoBackupHour(payload.hour, config.autoBackupHour))
+        );
+      }
+
+      if ("keepDays" in payload) {
+        setSettingValue(
+          database,
+          "auto_backup_keep_days",
+          String(normalizeAutoBackupKeepDays(payload.keepDays, config.autoBackupKeepDays))
+        );
+      }
+
+      if ("lastFileName" in payload) {
+        setSettingValue(database, "auto_backup_last_file_name", payload.lastFileName || "");
+      }
+
+      if ("lastRunAt" in payload) {
+        setSettingValue(database, "auto_backup_last_run_at", payload.lastRunAt || "");
+      }
+
+      if ("lastStatus" in payload) {
+        setSettingValue(database, "auto_backup_last_status", payload.lastStatus || "");
+      }
+
+      return buildAutoBackupSettings(database, config);
     },
     logAudit(payload) {
       database
@@ -1870,7 +1912,7 @@ function seedDefaultAdmin(database, config) {
     );
 }
 
-function seedSystemSettings(database) {
+function seedSystemSettings(database, config) {
   const now = getNow();
   database
     .prepare(`
@@ -1891,6 +1933,27 @@ function seedSystemSettings(database) {
       ) VALUES (?, ?, ?)
     `)
     .run("audit_last_pruned_at", "", now);
+
+  const defaultSettings = [
+    ["auto_backup_enabled", config.autoBackupEnabled ? "true" : "false"],
+    ["auto_backup_hour", String(normalizeAutoBackupHour(config.autoBackupHour, DEFAULT_AUTO_BACKUP_HOUR))],
+    ["auto_backup_keep_days", String(normalizeAutoBackupKeepDays(config.autoBackupKeepDays, DEFAULT_AUTO_BACKUP_KEEP_DAYS))],
+    ["auto_backup_last_run_at", ""],
+    ["auto_backup_last_status", config.autoBackupEnabled ? "Kutilmoqda" : "O'chirilgan"],
+    ["auto_backup_last_file_name", ""],
+  ];
+
+  const insertSetting = database.prepare(`
+    INSERT OR IGNORE INTO system_settings (
+      setting_key,
+      setting_value,
+      updated_at
+    ) VALUES (?, ?, ?)
+  `);
+
+  defaultSettings.forEach(([settingKey, settingValue]) => {
+    insertSetting.run(settingKey, settingValue, now);
+  });
 }
 
 function seedCatalogsFromInventory(database) {
@@ -2230,6 +2293,37 @@ function buildAuditSettings(database) {
   };
 }
 
+function buildAutoBackupSettings(database, config) {
+  const enabled = normalizeSettingBoolean(
+    getSettingValue(database, "auto_backup_enabled", String(config.autoBackupEnabled)),
+    config.autoBackupEnabled
+  );
+  const hour = normalizeAutoBackupHour(
+    getSettingValue(database, "auto_backup_hour", String(config.autoBackupHour)),
+    config.autoBackupHour
+  );
+  const keepDays = normalizeAutoBackupKeepDays(
+    getSettingValue(database, "auto_backup_keep_days", String(config.autoBackupKeepDays)),
+    config.autoBackupKeepDays
+  );
+  const lastRunAt = getSettingValue(database, "auto_backup_last_run_at", "");
+  const lastStatus = getSettingValue(
+    database,
+    "auto_backup_last_status",
+    enabled ? "Kutilmoqda" : "O'chirilgan"
+  );
+
+  return {
+    enabled,
+    hour,
+    keepDays,
+    lastFileName: getSettingValue(database, "auto_backup_last_file_name", ""),
+    lastRunAt,
+    lastStatus,
+    scheduleLabel: `Har kuni ${String(hour).padStart(2, "0")}:00`,
+  };
+}
+
 function getAuditRetentionDays(database) {
   return normalizeAuditRetentionDays(
     getSettingValue(database, "audit_retention_days", String(DEFAULT_AUDIT_RETENTION_DAYS))
@@ -2239,6 +2333,34 @@ function getAuditRetentionDays(database) {
 function normalizeAuditRetentionDays(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return AUDIT_RETENTION_OPTIONS.includes(parsed) ? parsed : DEFAULT_AUDIT_RETENTION_DAYS;
+}
+
+function normalizeAutoBackupHour(value, fallbackValue = DEFAULT_AUTO_BACKUP_HOUR) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isInteger(parsed)) {
+    return fallbackValue;
+  }
+
+  return Math.min(23, Math.max(0, parsed));
+}
+
+function normalizeAutoBackupKeepDays(value, fallbackValue = DEFAULT_AUTO_BACKUP_KEEP_DAYS) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isInteger(parsed)) {
+    return fallbackValue;
+  }
+
+  return Math.max(1, parsed);
+}
+
+function normalizeSettingBoolean(value, fallbackValue = false) {
+  if (value == null || value === "") {
+    return fallbackValue;
+  }
+
+  return String(value).trim().toLowerCase() === "true";
 }
 
 function pruneAuditLogsByRetention(database, retentionDays = getAuditRetentionDays(database)) {

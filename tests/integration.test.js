@@ -452,7 +452,77 @@ test("must change password flow blocks dashboard until password is updated", { c
   assert.equal(dashboard.response.status, 200);
 });
 
-function createClient() {
+test("automatic backup scheduler creates backup files and metrics", { concurrency: false }, async () => {
+  const autoPort = PORT + 1;
+  const autoBaseUrl = `http://127.0.0.1:${autoPort}`;
+  const autoTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "inventory-auto-backup-"));
+  const autoDatabasePath = path.join(autoTempDir, "inventory.sqlite");
+  const autoBackupsDir = path.join(autoTempDir, "backups");
+  const autoAttachmentsDir = path.join(autoTempDir, "attachments");
+  const autoServerProcess = spawn(process.execPath, ["server.js"], {
+    cwd: PROJECT_DIR,
+    env: {
+      ...process.env,
+      ADMIN_FULL_NAME: "Auto Backup Admin",
+      ADMIN_PASSWORD: "Admin123!",
+      ADMIN_USERNAME: "admin",
+      ATTACHMENTS_DIR: autoAttachmentsDir,
+      AUTO_BACKUP_ENABLED: "true",
+      AUTO_BACKUP_HOUR: "3",
+      AUTO_BACKUP_INTERVAL_MS: "750",
+      AUTO_BACKUP_KEEP_DAYS: "7",
+      BACKUPS_DIR: autoBackupsDir,
+      DATABASE_PATH: autoDatabasePath,
+      FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE: "false",
+      PORT: String(autoPort),
+    },
+    stdio: "ignore",
+  });
+
+  try {
+    await waitForServerAt(autoBaseUrl);
+    const autoClient = createClient(autoBaseUrl);
+    const login = await autoClient.request("/api/auth/login", {
+      body: {
+        password: "Admin123!",
+        username: "admin",
+      },
+      method: "POST",
+    });
+
+    assert.equal(login.response.status, 200);
+
+    await waitForCondition(async () => {
+      const metrics = await autoClient.request("/api/system/metrics");
+      return metrics.payload?.metrics?.autoBackup?.lastRunAt && Number(metrics.payload?.metrics?.backupCount || 0) >= 1;
+    }, 15000);
+
+    const metrics = await autoClient.request("/api/system/metrics");
+    assert.equal(metrics.response.status, 200);
+    assert.equal(metrics.payload.metrics.autoBackup.enabled, true);
+    assert.equal(metrics.payload.metrics.autoBackup.keepDays, 7);
+    assert.match(metrics.payload.metrics.autoBackup.scheduleLabel, /Har kuni/);
+    assert.ok(metrics.payload.metrics.autoBackup.lastRunAt);
+    assert.match(metrics.payload.metrics.autoBackup.lastStatus, /Muvaffaqiyatli/);
+    assert.ok(metrics.payload.metrics.backupCount >= 1);
+
+    const backupFiles = await fs.readdir(autoBackupsDir);
+    assert.ok(backupFiles.some((fileName) => /^inventory-backup-auto-.*\.json$/.test(fileName)));
+  } finally {
+    if (autoServerProcess && !autoServerProcess.killed) {
+      const exitPromise = new Promise((resolve) => {
+        autoServerProcess.once("exit", resolve);
+      });
+
+      autoServerProcess.kill("SIGTERM");
+      await exitPromise;
+    }
+
+    await fs.rm(autoTempDir, { force: true, recursive: true });
+  }
+});
+
+function createClient(baseUrl = BASE_URL) {
   const cookieJar = new Map();
 
   return {
@@ -473,7 +543,7 @@ function createClient() {
         body = JSON.stringify(body);
       }
 
-      const response = await fetch(`${BASE_URL}${resourcePath}`, {
+      const response = await fetch(`${baseUrl}${resourcePath}`, {
         body,
         headers,
         method: options.method || "GET",
@@ -519,11 +589,15 @@ function storeCookies(cookieJar, response) {
 }
 
 async function waitForServer() {
+  return waitForServerAt(BASE_URL);
+}
+
+async function waitForServerAt(baseUrl) {
   const timeoutAt = Date.now() + 15000;
 
   while (Date.now() < timeoutAt) {
     try {
-      const response = await fetch(`${BASE_URL}/api/health`);
+      const response = await fetch(`${baseUrl}/api/health`);
 
       if (response.ok) {
         return;
@@ -535,6 +609,20 @@ async function waitForServer() {
   }
 
   throw new Error("Server testlar uchun ishga tushmadi.");
+}
+
+async function waitForCondition(check, timeoutMs = 15000) {
+  const timeoutAt = Date.now() + timeoutMs;
+
+  while (Date.now() < timeoutAt) {
+    if (await check()) {
+      return;
+    }
+
+    await sleep(300);
+  }
+
+  throw new Error("Kutilgan shart bajarilmadi.");
 }
 
 function sleep(duration) {

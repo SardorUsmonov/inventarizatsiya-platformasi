@@ -4,6 +4,10 @@ const rootDir = path.resolve(__dirname, "..");
 const rawTrustProxy = process.env.TRUST_PROXY;
 
 module.exports = {
+  autoBackupEnabled: parseBoolean(process.env.AUTO_BACKUP_ENABLED, true),
+  autoBackupHour: clampInteger(process.env.AUTO_BACKUP_HOUR, 3, 0, 23),
+  autoBackupIntervalMs: clampInteger(process.env.AUTO_BACKUP_INTERVAL_MS, 0, 0),
+  autoBackupKeepDays: clampInteger(process.env.AUTO_BACKUP_KEEP_DAYS, 14, 1),
   appBaseUrl: process.env.APP_BASE_URL || "",
   attachmentsDir: process.env.ATTACHMENTS_DIR || path.join(rootDir, "data", "attachments"),
   backupsDir: process.env.BACKUPS_DIR || path.join(rootDir, "data", "backups"),
@@ -49,4 +53,22 @@ function resolveTrustProxy(value) {
   }
 
   return value;
+}
+
+function parseBoolean(value, fallbackValue) {
+  if (value == null || value === "") {
+    return fallbackValue;
+  }
+
+  return String(value).trim().toLowerCase() === "true";
+}
+
+function clampInteger(value, fallbackValue, minimum, maximum = Number.POSITIVE_INFINITY) {
+  const parsedValue = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isInteger(parsedValue)) {
+    return fallbackValue;
+  }
+
+  return Math.min(maximum, Math.max(minimum, parsedValue));
 }

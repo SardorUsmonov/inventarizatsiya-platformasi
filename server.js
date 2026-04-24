@@ -58,6 +58,8 @@ const restoreUpload = multer({
   storage: multer.memoryStorage(),
 });
 const database = createDatabase(config);
+let autoBackupTimerId = 0;
+let autoBackupInFlight = false;
 
 app.disable("x-powered-by");
 app.set("trust proxy", config.trustProxy);
@@ -897,26 +899,14 @@ app.get("/api/system/metrics", requirePermission("manageSettings"), (request, re
 });
 
 app.get("/api/system/backup", requirePermission("manageBackups"), (request, response) => {
-  const payload = database.exportBackupPayload();
-  payload.files = payload.data.attachments.map((attachment) => ({
-    fileName: attachment.file_name,
-    filePath: attachment.file_path,
-    id: attachment.id,
-    mimeType: attachment.mime_type,
-    storedName: attachment.stored_name,
-    contentBase64: attachment.file_path && fs.existsSync(attachment.file_path)
-      ? fs.readFileSync(attachment.file_path).toString("base64")
-      : "",
-  }));
-
-  const fileName = `inventory-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
-  const backupPath = path.join(config.backupsDir, fileName);
-  fs.writeFileSync(backupPath, JSON.stringify(payload, null, 2), "utf8");
-  database.createBackupRun(fileName, "JSON backup yaratildi.", request.user.id);
+  const backup = writeBackupSnapshot({
+    initiatedByUserId: request.user.id,
+    summary: "JSON backup yaratildi.",
+  });
 
   response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-  response.send(JSON.stringify(payload, null, 2));
+  response.setHeader("Content-Disposition", `attachment; filename="${backup.fileName}"`);
+  response.send(JSON.stringify(backup.payload, null, 2));
 });
 
 app.post(
@@ -1502,6 +1492,7 @@ app.use((error, _request, response, _next) => {
 
 const server = app.listen(config.port, () => {
   console.log(`Inventarizatsiya serveri ishga tushdi: http://localhost:${config.port}`);
+  startAutomaticBackupScheduler();
 });
 
 process.on("SIGINT", shutdown);
@@ -2166,7 +2157,172 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+function buildBackupPayloadWithFiles() {
+  const payload = database.exportBackupPayload();
+  payload.files = payload.data.attachments.map((attachment) => ({
+    fileName: attachment.file_name,
+    filePath: attachment.file_path,
+    id: attachment.id,
+    mimeType: attachment.mime_type,
+    storedName: attachment.stored_name,
+    contentBase64: attachment.file_path && fs.existsSync(attachment.file_path)
+      ? fs.readFileSync(attachment.file_path).toString("base64")
+      : "",
+  }));
+  return payload;
+}
+
+function writeBackupSnapshot({ initiatedByUserId = null, prefix = "inventory-backup", summary }) {
+  const payload = buildBackupPayloadWithFiles();
+  const fileName = `${prefix}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+  const backupPath = path.join(config.backupsDir, fileName);
+  fs.writeFileSync(backupPath, JSON.stringify(payload, null, 2), "utf8");
+  database.createBackupRun(fileName, summary, initiatedByUserId);
+  const prunedFiles = pruneStoredBackupFiles(config.backupsDir, database.getAutoBackupSettings().keepDays, fileName);
+
+  return {
+    backupPath,
+    fileName,
+    payload,
+    prunedFiles,
+  };
+}
+
+function pruneStoredBackupFiles(backupsDir, keepDays, latestFileName = "") {
+  const normalizedKeepDays = Math.max(1, Number(keepDays) || config.autoBackupKeepDays || 14);
+  const cutoffTime = Date.now() - normalizedKeepDays * 24 * 60 * 60 * 1000;
+  const backupFiles = fs.existsSync(backupsDir) ? fs.readdirSync(backupsDir) : [];
+  let deletedCount = 0;
+
+  backupFiles.forEach((fileName) => {
+    if (fileName === latestFileName || !/^inventory-backup.*\.json$/i.test(fileName)) {
+      return;
+    }
+
+    const filePath = path.join(backupsDir, fileName);
+    const fileStat = fs.statSync(filePath);
+
+    if (fileStat.mtimeMs >= cutoffTime) {
+      return;
+    }
+
+    fs.unlinkSync(filePath);
+    deletedCount += 1;
+  });
+
+  return deletedCount;
+}
+
+function startAutomaticBackupScheduler() {
+  scheduleNextAutomaticBackup();
+}
+
+function scheduleNextAutomaticBackup() {
+  if (autoBackupTimerId) {
+    clearTimeout(autoBackupTimerId);
+  }
+
+  const delayMs = getNextAutomaticBackupDelayMs();
+  autoBackupTimerId = setTimeout(() => {
+    runAutomaticBackup().catch((error) => {
+      console.error("Avtomatik backup bajarilmadi.", error);
+    });
+  }, delayMs);
+}
+
+function getNextAutomaticBackupDelayMs(now = new Date()) {
+  const settings = database.getAutoBackupSettings();
+
+  if (!settings.enabled) {
+    return 12 * 60 * 60 * 1000;
+  }
+
+  if (config.autoBackupIntervalMs > 0) {
+    return config.autoBackupIntervalMs;
+  }
+
+  const scheduledAt = new Date(now);
+  scheduledAt.setHours(settings.hour, 0, 0, 0);
+  const lastRunAt = settings.lastRunAt ? new Date(settings.lastRunAt) : null;
+
+  if (now >= scheduledAt) {
+    if (!lastRunAt || !isSameCalendarDay(lastRunAt, now)) {
+      return 30 * 1000;
+    }
+
+    const nextRun = new Date(scheduledAt);
+    nextRun.setDate(nextRun.getDate() + 1);
+    return Math.max(60 * 1000, nextRun.getTime() - now.getTime());
+  }
+
+  return Math.max(60 * 1000, scheduledAt.getTime() - now.getTime());
+}
+
+async function runAutomaticBackup() {
+  if (autoBackupInFlight) {
+    return;
+  }
+
+  const settings = database.getAutoBackupSettings();
+
+  if (!settings.enabled) {
+    scheduleNextAutomaticBackup();
+    return;
+  }
+
+  autoBackupInFlight = true;
+  const startedAt = new Date().toISOString();
+
+  try {
+    const backup = writeBackupSnapshot({
+      prefix: "inventory-backup-auto",
+      summary: "Avtomatik kunlik zaxira nusxasi yaratildi.",
+    });
+    const statusText = backup.prunedFiles
+      ? `Muvaffaqiyatli, ${backup.prunedFiles} ta eski backup tozalandi.`
+      : "Muvaffaqiyatli";
+    database.setAutoBackupMeta({
+      lastFileName: backup.fileName,
+      lastRunAt: startedAt,
+      lastStatus: statusText,
+    });
+    database.logAudit({
+      action: "system.backup_auto",
+      actorName: "System Scheduler",
+      actorRole: "system",
+      actorUsername: "system",
+      details: {
+        fileName: backup.fileName,
+        prunedFiles: backup.prunedFiles,
+      },
+      entityType: "system",
+      ipAddress: "127.0.0.1",
+      summary: `Avtomatik backup yaratildi: ${backup.fileName}.`,
+    });
+    console.log(`Avtomatik backup tayyor: ${backup.fileName}`);
+  } catch (error) {
+    database.setAutoBackupMeta({
+      lastRunAt: startedAt,
+      lastStatus: `Xatolik: ${String(error.message || error).slice(0, 160)}`,
+    });
+    throw error;
+  } finally {
+    autoBackupInFlight = false;
+    scheduleNextAutomaticBackup();
+  }
+}
+
+function isSameCalendarDay(leftDate, rightDate) {
+  return leftDate.getFullYear() === rightDate.getFullYear()
+    && leftDate.getMonth() === rightDate.getMonth()
+    && leftDate.getDate() === rightDate.getDate();
+}
+
 function shutdown() {
+  if (autoBackupTimerId) {
+    clearTimeout(autoBackupTimerId);
+  }
+
   server.close(() => {
     database.close();
     process.exit(0);

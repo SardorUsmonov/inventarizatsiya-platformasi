@@ -724,6 +724,8 @@
 
         const blob = await response.blob();
         downloadBlob(blob, `inventory-backup-${new Date().toISOString().slice(0, 10)}.json`, "application/json");
+        await refreshSystemSummary();
+        showStatus("Zaxira nusxasi yuklandi va tizim ko'rsatkichlari yangilandi.");
       } catch (error) {
         showStatus(error.message, "error");
       }
@@ -1214,6 +1216,7 @@
 
     const reportOverview = enhancementState.reportSummary?.overview?.stats || state.dashboardOverview?.stats || {};
     const metrics = enhancementState.systemMetrics || enhancementState.reportSummary?.metrics || null;
+    const autoBackup = metrics?.autoBackup || null;
     const cards = [
       ["Manzil", window.location.origin],
       ["Yozuvlar", String(reportOverview.totalRecords || state.inventoryRecords.length || 0)],
@@ -1222,7 +1225,12 @@
       ["Transferlar", metrics?.transfers != null ? String(metrics.transfers) : "-"],
       ["Fayllar hajmi", metrics ? formatBytes(metrics.uploadsSizeBytes || 0) : "-"],
       ["DB hajmi", metrics ? formatBytes(metrics.databaseSizeBytes || 0) : "-"],
+      ["Backup papkasi", metrics ? formatBytes(metrics.backupStorageBytes || 0) : "-"],
       ["Zaxira nusxalari soni", metrics?.backupCount != null ? String(metrics.backupCount) : String((state.backupRuns || []).length)],
+      ["Auto backup", autoBackup?.enabled ? autoBackup.scheduleLabel : "O'chirilgan"],
+      ["Oxirgi auto backup", autoBackup?.lastRunAt ? formatDate(autoBackup.lastRunAt) : "-"],
+      ["Backup saqlash", autoBackup?.keepDays ? `${autoBackup.keepDays} kun` : "-"],
+      ["Auto backup holati", autoBackup?.lastStatus || "-"],
     ];
 
     cards.forEach(([label, value]) => {
