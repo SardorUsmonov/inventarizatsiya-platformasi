@@ -1678,6 +1678,12 @@ body[data-theme="dark"] .hero-visual {
   color: var(--brand-dark);
 }
 
+.secondary-button--danger,
+.row-action--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .ghost-button {
   background: var(--ghost-bg);
   color: var(--muted-strong);

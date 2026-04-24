@@ -123,6 +123,7 @@ const departmentCodeInput = document.querySelector("#departmentCode");
 const departmentDescriptionInput = document.querySelector("#departmentDescription");
 const departmentIsActiveInput = document.querySelector("#departmentIsActive");
 const departmentSubmitButton = document.querySelector("#departmentSubmitButton");
+const deleteDepartmentButton = document.querySelector("#deleteDepartmentButton");
 const cancelDepartmentEditButton = document.querySelector("#cancelDepartmentEditButton");
 const departmentsTableBody = document.querySelector("#departmentsTableBody");
 const departmentCatalogSearchInput = document.querySelector("#departmentCatalogSearch");
@@ -401,6 +402,16 @@ departmentForm.addEventListener("submit", async (event) => {
 });
 
 cancelDepartmentEditButton.addEventListener("click", resetDepartmentForm);
+deleteDepartmentButton.addEventListener("click", () => {
+  const departmentId = parsePositiveInteger(departmentCatalogId.value);
+
+  if (!departmentId) {
+    showStatus("O'chirish uchun bo'lim tanlanmagan.", "error");
+    return;
+  }
+
+  deleteDepartmentById(departmentId, departmentNameInput.value.trim()).catch(handleError);
+});
 
 deviceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1276,16 +1287,7 @@ function renderDepartments() {
       row,
       state.permissions.manageCatalogs,
       () => fillDepartmentForm(department),
-      async () => {
-        if (!window.confirm(`"${department.name}" bo'limini o'chirmoqchimisiz?`)) {
-          return;
-        }
-
-        await request(`/api/departments/${department.id}`, { method: "DELETE" });
-        await refreshDashboardData();
-        await loadInventory({ silent: true });
-        showStatus("Bo'lim katalogdan o'chirildi.");
-      }
+      () => deleteDepartmentById(department.id, department.name)
     );
     departmentsTableBody.appendChild(row);
   });
@@ -1441,17 +1443,17 @@ function appendCatalogActionCell(row, canEdit, onEdit, onDelete) {
     const wrapper = document.createElement("div");
     wrapper.className = "row-actions";
     wrapper.appendChild(createRowButton("Tahrirlash", onEdit));
-    wrapper.appendChild(createRowButton("O'chirish", onDelete));
+    wrapper.appendChild(createRowButton("O'chirish", onDelete, "row-action--danger"));
     cell.appendChild(wrapper);
   }
 
   row.appendChild(cell);
 }
 
-function createRowButton(label, onClick) {
+function createRowButton(label, onClick, extraClass = "") {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "row-action";
+  button.className = `row-action ${extraClass}`.trim();
   button.textContent = label;
   button.addEventListener("click", onClick);
   return button;
@@ -1487,6 +1489,7 @@ function fillDepartmentForm(department) {
   departmentDescriptionInput.value = department.description || "";
   departmentIsActiveInput.checked = Boolean(department.isActive);
   departmentSubmitButton.textContent = "Yangilash";
+  deleteDepartmentButton.classList.remove("hidden");
   cancelDepartmentEditButton.classList.remove("hidden");
 }
 
@@ -1536,7 +1539,34 @@ function resetDepartmentForm() {
   departmentCatalogId.value = "";
   departmentIsActiveInput.checked = true;
   departmentSubmitButton.textContent = "Saqlash";
+  deleteDepartmentButton.classList.add("hidden");
   cancelDepartmentEditButton.classList.add("hidden");
+}
+
+async function deleteDepartmentById(departmentId, departmentName) {
+  const displayName = departmentName || "Tanlangan bo'lim";
+
+  if (!window.confirm(`"${displayName}" bo'limini o'chirmoqchimisiz?`)) {
+    return;
+  }
+
+  deleteDepartmentButton.disabled = true;
+
+  try {
+    await request(`/api/departments/${departmentId}`, { method: "DELETE" });
+
+    if (parsePositiveInteger(departmentCatalogId.value) === departmentId) {
+      resetDepartmentForm();
+    }
+
+    await refreshDashboardData();
+    await loadInventory({ silent: true });
+    showStatus("Bo'lim katalogdan o'chirildi.");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    deleteDepartmentButton.disabled = false;
+  }
 }
 
 function resetDeviceForm() {
