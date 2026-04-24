@@ -27,14 +27,26 @@ const serialNumberInput = document.querySelector("#serialNumber");
 const assetStatusSelect = document.querySelector("#assetStatus");
 const conditionStatusSelect = document.querySelector("#conditionStatus");
 const purchaseDateInput = document.querySelector("#purchaseDate");
+const purchasePriceInput = document.querySelector("#purchasePrice");
 const assignedAtInput = document.querySelector("#assignedAt");
 const warrantyUntilInput = document.querySelector("#warrantyUntil");
 const supplierInput = document.querySelector("#supplier");
+const branchInput = document.querySelector("#branch");
+const roomInput = document.querySelector("#room");
+const deskInput = document.querySelector("#desk");
 const officeLocationInput = document.querySelector("#officeLocation");
 const accessoriesInput = document.querySelector("#accessories");
 const previousHolderInput = document.querySelector("#previousHolder");
 const currentHolderInput = document.querySelector("#currentHolder");
 const notesInput = document.querySelector("#notes");
+const inventoryWizardSteps = [...document.querySelectorAll("[data-inventory-step]")];
+const inventoryWizardPanels = [...document.querySelectorAll("[data-wizard-panel]")];
+const inventoryWizardStepCounterElement = document.querySelector("#inventoryWizardStepCounter");
+const inventoryWizardStepTitleElement = document.querySelector("#inventoryWizardStepTitle");
+const inventoryWizardStepDescriptionElement = document.querySelector("#inventoryWizardStepDescription");
+const inventoryWizardPrevButton = document.querySelector("#inventoryWizardPrevButton");
+const inventoryWizardNextButton = document.querySelector("#inventoryWizardNextButton");
+const inventoryWizardReviewElement = document.querySelector("#inventoryWizardReview");
 const submitButton = document.querySelector("#submitButton");
 const resetButton = document.querySelector("#resetButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
@@ -184,6 +196,7 @@ const state = {
   devices: [],
   inventoryRecords: [],
   inventoryRequestController: null,
+  inventoryWizardStep: 0,
   permissions: {},
   roles: [],
   searchDebounceId: 0,
@@ -192,6 +205,30 @@ const state = {
   users: [],
 };
 
+const INVENTORY_WIZARD_STEPS = [
+  {
+    description: "Xodimning F.I.Sh., bo'limi va kimga biriktirilganini kiriting.",
+    fields: [firstNameInput, lastNameInput, departmentSelect, currentHolderInput, previousHolderInput],
+    title: "Mas'ul shaxs va biriktirish",
+  },
+  {
+    description: "Qurilma, teg, serial raqam va joriy statusni tanlang.",
+    fields: [deviceSelect, assetTagInput, serialNumberInput, assetStatusSelect, conditionStatusSelect],
+    title: "Texnika va identifikatsiya",
+  },
+  {
+    description: "Xarid, kafolat va aniq joylashuv ma'lumotlarini kiriting.",
+    fields: [purchaseDateInput, purchasePriceInput, assignedAtInput, warrantyUntilInput, supplierInput, branchInput, roomInput, deskInput, officeLocationInput],
+    title: "Xarid, kafolat va joylashuv",
+  },
+  {
+    description: "Qo'shimcha izohlarni tekshirib, yozuvni yakunlang.",
+    fields: [accessoriesInput, notesInput],
+    title: "Yakunlash va tekshiruv",
+  },
+];
+
+syncInventoryWizardUI();
 bootstrap();
 
 loginForm.addEventListener("submit", async (event) => {
@@ -258,8 +295,37 @@ scenarioActionButtons.forEach((button) => {
   button.addEventListener("click", () => runScenario(button.dataset.scenarioAction));
 });
 
+inventoryWizardSteps.forEach((button) => {
+  button.addEventListener("click", () => navigateInventoryWizardToStep(Number(button.dataset.inventoryStep)));
+});
+
+inventoryWizardPrevButton.addEventListener("click", () => navigateInventoryWizardBy(-1));
+inventoryWizardNextButton.addEventListener("click", () => navigateInventoryWizardBy(1));
+
+inventoryForm.addEventListener("input", () => syncInventoryWizardUI());
+inventoryForm.addEventListener("change", () => syncInventoryWizardUI());
+inventoryForm.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.target instanceof HTMLTextAreaElement) {
+    return;
+  }
+
+  if (event.target instanceof HTMLButtonElement) {
+    return;
+  }
+
+  if (state.inventoryWizardStep < INVENTORY_WIZARD_STEPS.length - 1) {
+    event.preventDefault();
+    navigateInventoryWizardBy(1);
+  }
+});
+
 inventoryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+
+  if (!prepareInventoryWizardForSubmit()) {
+    return;
+  }
+
   const recordId = recordIdInput.value;
 
   setInventoryBusy(true);
@@ -1666,6 +1732,182 @@ function createRowButton(label, onClick, extraClass = "") {
   return button;
 }
 
+function navigateInventoryWizardBy(direction) {
+  const targetStep = state.inventoryWizardStep + direction;
+
+  if (direction > 0 && !validateInventoryWizardStep(state.inventoryWizardStep)) {
+    return;
+  }
+
+  setInventoryWizardStep(targetStep);
+}
+
+function navigateInventoryWizardToStep(targetStep) {
+  const normalizedTarget = Number(targetStep);
+
+  if (!Number.isInteger(normalizedTarget)) {
+    return;
+  }
+
+  if (normalizedTarget <= state.inventoryWizardStep) {
+    setInventoryWizardStep(normalizedTarget);
+    return;
+  }
+
+  for (let index = state.inventoryWizardStep; index < normalizedTarget; index += 1) {
+    if (!validateInventoryWizardStep(index)) {
+      return;
+    }
+  }
+
+  setInventoryWizardStep(normalizedTarget);
+}
+
+function setInventoryWizardStep(stepIndex) {
+  const maxIndex = INVENTORY_WIZARD_STEPS.length - 1;
+  const normalizedIndex = Math.max(0, Math.min(maxIndex, Number(stepIndex) || 0));
+  state.inventoryWizardStep = normalizedIndex;
+  syncInventoryWizardUI();
+}
+
+function syncInventoryWizardUI() {
+  const step = INVENTORY_WIZARD_STEPS[state.inventoryWizardStep] || INVENTORY_WIZARD_STEPS[0];
+  const isLastStep = state.inventoryWizardStep === INVENTORY_WIZARD_STEPS.length - 1;
+
+  inventoryWizardStepCounterElement.textContent = `${state.inventoryWizardStep + 1} / ${INVENTORY_WIZARD_STEPS.length}-qadam`;
+  inventoryWizardStepTitleElement.textContent = step.title;
+  inventoryWizardStepDescriptionElement.textContent = step.description;
+
+  inventoryWizardSteps.forEach((button, index) => {
+    const isActive = index === state.inventoryWizardStep;
+    const isComplete = index < state.inventoryWizardStep;
+    button.classList.toggle("is-active", isActive);
+    button.classList.toggle("is-complete", isComplete);
+    button.setAttribute("aria-current", isActive ? "step" : "false");
+  });
+
+  inventoryWizardPanels.forEach((panel, index) => {
+    const isActive = index === state.inventoryWizardStep;
+    panel.classList.toggle("hidden", !isActive);
+    panel.classList.toggle("is-active", isActive);
+  });
+
+  inventoryWizardPrevButton.disabled = state.inventoryWizardStep === 0;
+  inventoryWizardNextButton.classList.toggle("hidden", isLastStep);
+  submitButton.classList.toggle("hidden", !isLastStep);
+  renderInventoryWizardReview();
+}
+
+function renderInventoryWizardReview() {
+  if (!inventoryWizardReviewElement) {
+    return;
+  }
+
+  const reviewItems = [
+    {
+      label: "Mas'ul shaxs",
+      value: [firstNameInput.value.trim(), lastNameInput.value.trim()].filter(Boolean).join(" ") || "Kiritilmagan",
+    },
+    {
+      label: "Joriy egasi",
+      value: currentHolderInput.value.trim() || "Kiritilmagan",
+    },
+    {
+      label: "Bo'lim",
+      value: departmentSelect.selectedOptions[0]?.textContent || "Tanlanmagan",
+    },
+    {
+      label: "Texnika",
+      value: deviceSelect.selectedOptions[0]?.textContent || "Tanlanmagan",
+    },
+    {
+      label: "Aktiv holati",
+      value: getAssetStatusLabel(assetStatusSelect.value || ""),
+    },
+    {
+      label: "Texnik ahvoli",
+      value: getConditionStatusLabel(conditionStatusSelect.value || ""),
+    },
+    {
+      label: "Joylashuv",
+      value: [branchInput.value.trim(), roomInput.value.trim(), deskInput.value.trim(), officeLocationInput.value.trim()]
+        .filter(Boolean)
+        .join(" / ") || "Kiritilmagan",
+    },
+    {
+      label: "Kafolat",
+      value: warrantyUntilInput.value ? formatShortDate(warrantyUntilInput.value) : "Kiritilmagan",
+    },
+    {
+      label: "Qo'shimcha",
+      value: accessoriesInput.value.trim() || "Qo'shimcha mayda texnika ko'rsatilmagan",
+    },
+    {
+      label: "Izoh",
+      value: notesInput.value.trim() || "Izoh kiritilmagan",
+    },
+  ];
+
+  inventoryWizardReviewElement.innerHTML = "";
+
+  reviewItems.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "wizard-review__card";
+
+    const label = document.createElement("span");
+    label.className = "wizard-review__label";
+    label.textContent = item.label;
+
+    const value = document.createElement("strong");
+    value.className = "wizard-review__value";
+    value.textContent = item.value;
+
+    card.append(label, value);
+    inventoryWizardReviewElement.appendChild(card);
+  });
+}
+
+function validateInventoryWizardStep(stepIndex) {
+  const step = INVENTORY_WIZARD_STEPS[stepIndex];
+
+  if (!step) {
+    return true;
+  }
+
+  for (const field of step.fields) {
+    if (!field || field.disabled) {
+      continue;
+    }
+
+    if (typeof field.reportValidity === "function" && !field.reportValidity()) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function prepareInventoryWizardForSubmit() {
+  const lastStepIndex = INVENTORY_WIZARD_STEPS.length - 1;
+
+  if (state.inventoryWizardStep < lastStepIndex) {
+    if (validateInventoryWizardStep(state.inventoryWizardStep)) {
+      setInventoryWizardStep(state.inventoryWizardStep + 1);
+    }
+
+    return false;
+  }
+
+  for (let index = 0; index < INVENTORY_WIZARD_STEPS.length; index += 1) {
+    if (!validateInventoryWizardStep(index)) {
+      setInventoryWizardStep(index);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function fillInventoryForm(record) {
   recordIdInput.value = String(record.id);
   firstNameInput.value = record.firstName;
@@ -1687,6 +1929,7 @@ function fillInventoryForm(record) {
   notesInput.value = record.notes || "";
   submitButton.textContent = "Yangilash";
   cancelEditButton.classList.remove("hidden");
+  setInventoryWizardStep(0);
 }
 
 function fillDepartmentForm(department) {
@@ -1729,6 +1972,7 @@ function resetInventoryForm() {
   conditionStatusSelect.value = state.conditionStatuses[0]?.value || "";
   submitButton.textContent = "Saqlash";
   cancelEditButton.classList.add("hidden");
+  setInventoryWizardStep(0);
 }
 
 function resetQuickDepartmentForm() {
@@ -2209,6 +2453,11 @@ function setInventoryBusy(isBusy) {
   submitButton.disabled = isBusy;
   resetButton.disabled = isBusy;
   cancelEditButton.disabled = isBusy;
+  inventoryWizardPrevButton.disabled = isBusy || state.inventoryWizardStep === 0;
+  inventoryWizardNextButton.disabled = isBusy;
+  inventoryWizardSteps.forEach((button) => {
+    button.disabled = isBusy;
+  });
   submitButton.textContent = isBusy ? "Saqlanmoqda..." : recordIdInput.value ? "Yangilash" : "Saqlash";
 }
 

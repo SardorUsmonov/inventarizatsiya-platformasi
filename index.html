@@ -570,117 +570,211 @@
                 Sizda inventar yozuvlarini yaratish yoki tahrirlash huquqi yo'q.
               </div>
 
-              <form id="inventoryForm" class="inventory-form">
+              <form id="inventoryForm" class="inventory-form inventory-form--wizard">
                 <input type="hidden" id="recordId">
+                <div class="wizard-header">
+                  <div class="wizard-status">
+                    <span class="wizard-status__step" id="inventoryWizardStepCounter">1 / 4-qadam</span>
+                    <div>
+                      <h3 class="wizard-status__title" id="inventoryWizardStepTitle">Mas'ul shaxs va biriktirish</h3>
+                      <p class="wizard-status__text" id="inventoryWizardStepDescription">
+                        Xodimning F.I.Sh., bo'limi va kimga biriktirilganini kiriting.
+                      </p>
+                    </div>
+                  </div>
 
-                <label class="field">
-                  <span>Ism</span>
-                  <input id="firstName" type="text" placeholder="Masalan: Ali" required>
-                </label>
+                  <div class="wizard-progress" aria-label="Inventar wizard qadamlar">
+                    <button class="wizard-step is-active" data-inventory-step="0" type="button">
+                      <span class="wizard-step__index">1</span>
+                      <span class="wizard-step__copy">
+                        <strong class="wizard-step__title">Mas'ul shaxs</strong>
+                        <span class="wizard-step__text">F.I.Sh. va bo'lim</span>
+                      </span>
+                    </button>
+                    <button class="wizard-step" data-inventory-step="1" type="button">
+                      <span class="wizard-step__index">2</span>
+                      <span class="wizard-step__copy">
+                        <strong class="wizard-step__title">Texnika</strong>
+                        <span class="wizard-step__text">Qurilma va status</span>
+                      </span>
+                    </button>
+                    <button class="wizard-step" data-inventory-step="2" type="button">
+                      <span class="wizard-step__index">3</span>
+                      <span class="wizard-step__copy">
+                        <strong class="wizard-step__title">Joylashuv</strong>
+                        <span class="wizard-step__text">Xarid va manzil</span>
+                      </span>
+                    </button>
+                    <button class="wizard-step" data-inventory-step="3" type="button">
+                      <span class="wizard-step__index">4</span>
+                      <span class="wizard-step__copy">
+                        <strong class="wizard-step__title">Yakunlash</strong>
+                        <span class="wizard-step__text">Tekshirish va saqlash</span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
-                <label class="field">
-                  <span>Familya</span>
-                  <input id="lastName" type="text" placeholder="Masalan: Karimov" required>
-                </label>
+                <div class="wizard-panels">
+                  <section class="wizard-panel is-active" data-wizard-panel="0">
+                    <div class="wizard-panel__intro">
+                      <p class="panel__eyebrow">1-qadam</p>
+                      <h3>Mas'ul shaxs va biriktirish</h3>
+                      <p class="panel__subtext">Inventar yozuvining egasi va bo'limini aniqlang.</p>
+                    </div>
 
-                <label class="field">
-                  <span>Bo'lim / soha</span>
-                  <select id="departmentId" required></select>
-                </label>
+                    <div class="wizard-panel__grid">
+                      <label class="field">
+                        <span>Ism</span>
+                        <input id="firstName" type="text" placeholder="Masalan: Ali" required>
+                      </label>
 
-                <label class="field">
-                  <span>Texnika</span>
-                  <select id="deviceId" required></select>
-                </label>
+                      <label class="field">
+                        <span>Familya</span>
+                        <input id="lastName" type="text" placeholder="Masalan: Karimov" required>
+                      </label>
 
-                <label class="field">
-                  <span>Aktiv tegi</span>
-                  <input id="assetTag" type="text" placeholder="Masalan: NB-024">
-                </label>
+                      <label class="field">
+                        <span>Bo'lim / soha</span>
+                        <select id="departmentId" required></select>
+                      </label>
 
-                <label class="field">
-                  <span>Serial raqam</span>
-                  <input id="serialNumber" type="text" placeholder="Masalan: SN-5520-44A1">
-                </label>
+                      <label class="field">
+                        <span>Hozir kimda</span>
+                        <input id="currentHolder" type="text" placeholder="Masalan: Ali Karimov" required>
+                      </label>
 
-                <label class="field">
-                  <span>Holati</span>
-                  <select id="assetStatus"></select>
-                </label>
+                      <label class="field field--full">
+                        <span>Oldin kimda bo'lgan</span>
+                        <input id="previousHolder" type="text" placeholder="Masalan: Murod Usmonov">
+                      </label>
+                    </div>
+                  </section>
 
-                <label class="field">
-                  <span>Texnik holati</span>
-                  <select id="conditionStatus"></select>
-                </label>
+                  <section class="wizard-panel hidden" data-wizard-panel="1">
+                    <div class="wizard-panel__intro">
+                      <p class="panel__eyebrow">2-qadam</p>
+                      <h3>Texnika va identifikatsiya</h3>
+                      <p class="panel__subtext">Qurilma, teg, serial raqam va statusni tanlang.</p>
+                    </div>
 
-                <label class="field">
-                  <span>Sotib olingan sana</span>
-                  <input id="purchaseDate" type="date">
-                </label>
+                    <div class="wizard-panel__grid">
+                      <label class="field">
+                        <span>Texnika</span>
+                        <select id="deviceId" required></select>
+                      </label>
 
-                <label class="field">
-                  <span>Sotib olish narxi</span>
-                  <input id="purchasePrice" type="number" min="0" step="0.01" placeholder="Masalan: 1450">
-                </label>
+                      <label class="field">
+                        <span>Aktiv tegi</span>
+                        <input id="assetTag" type="text" placeholder="Masalan: NB-024">
+                      </label>
 
-                <label class="field">
-                  <span>Biriktirilgan sana</span>
-                  <input id="assignedAt" type="date">
-                </label>
+                      <label class="field">
+                        <span>Serial raqam</span>
+                        <input id="serialNumber" type="text" placeholder="Masalan: SN-5520-44A1">
+                      </label>
 
-                <label class="field">
-                  <span>Kafolat muddati</span>
-                  <input id="warrantyUntil" type="date">
-                </label>
+                      <label class="field">
+                        <span>Holati</span>
+                        <select id="assetStatus"></select>
+                      </label>
 
-                <label class="field">
-                  <span>Yetkazib beruvchi</span>
-                  <input id="supplier" type="text" placeholder="Masalan: Dell Uzbekistan">
-                </label>
+                      <label class="field field--full">
+                        <span>Texnik holati</span>
+                        <select id="conditionStatus"></select>
+                      </label>
+                    </div>
+                  </section>
 
-                <label class="field">
-                  <span>Filial</span>
-                  <input id="branch" type="text" placeholder="Masalan: Toshkent HQ">
-                </label>
+                  <section class="wizard-panel hidden" data-wizard-panel="2">
+                    <div class="wizard-panel__intro">
+                      <p class="panel__eyebrow">3-qadam</p>
+                      <h3>Xarid, kafolat va joylashuv</h3>
+                      <p class="panel__subtext">Xarid sanasi, narx, filial va joylashuv bilan logistika ma'lumotini kiriting.</p>
+                    </div>
 
-                <label class="field">
-                  <span>Xona</span>
-                  <input id="room" type="text" placeholder="Masalan: 304">
-                </label>
+                    <div class="wizard-panel__grid">
+                      <label class="field">
+                        <span>Sotib olingan sana</span>
+                        <input id="purchaseDate" type="date">
+                      </label>
 
-                <label class="field">
-                  <span>Stol</span>
-                  <input id="desk" type="text" placeholder="Masalan: D-12">
-                </label>
+                      <label class="field">
+                        <span>Sotib olish narxi</span>
+                        <input id="purchasePrice" type="number" min="0" step="0.01" placeholder="Masalan: 1450">
+                      </label>
 
-                <label class="field">
-                  <span>Joylashuv</span>
-                  <input id="officeLocation" type="text" placeholder="Masalan: Toshkent HQ, 3-qavat">
-                </label>
+                      <label class="field">
+                        <span>Biriktirilgan sana</span>
+                        <input id="assignedAt" type="date">
+                      </label>
 
-                <label class="field field--full">
-                  <span>Qo'shimcha mayda texnikalar</span>
-                  <input id="accessories" type="text" placeholder="Masalan: Dock, sichqoncha, ryukzak, quvvatlagich">
-                </label>
+                      <label class="field">
+                        <span>Kafolat muddati</span>
+                        <input id="warrantyUntil" type="date">
+                      </label>
 
-                <label class="field">
-                  <span>Oldin kimda bo'lgan</span>
-                  <input id="previousHolder" type="text" placeholder="Masalan: Murod Usmonov">
-                </label>
+                      <label class="field">
+                        <span>Yetkazib beruvchi</span>
+                        <input id="supplier" type="text" placeholder="Masalan: Dell Uzbekistan">
+                      </label>
 
-                <label class="field">
-                  <span>Hozir kimda</span>
-                  <input id="currentHolder" type="text" placeholder="Masalan: Ali Karimov" required>
-                </label>
+                      <label class="field">
+                        <span>Filial</span>
+                        <input id="branch" type="text" placeholder="Masalan: Toshkent HQ">
+                      </label>
 
-                <label class="field field--full">
-                  <span>Izoh</span>
-                  <textarea id="notes" rows="4" placeholder="Texnikaning holati, nosozlik tarixi yoki qo'shimcha ichki eslatmalar"></textarea>
-                </label>
+                      <label class="field">
+                        <span>Xona</span>
+                        <input id="room" type="text" placeholder="Masalan: 304">
+                      </label>
 
-                <div class="form-actions">
-                  <button class="primary-button" id="submitButton" type="submit">Saqlash</button>
+                      <label class="field">
+                        <span>Stol</span>
+                        <input id="desk" type="text" placeholder="Masalan: D-12">
+                      </label>
+
+                      <label class="field field--full">
+                        <span>Joylashuv</span>
+                        <input id="officeLocation" type="text" placeholder="Masalan: Toshkent HQ, 3-qavat">
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="wizard-panel hidden" data-wizard-panel="3">
+                    <div class="wizard-panel__intro">
+                      <p class="panel__eyebrow">4-qadam</p>
+                      <h3>Qo'shimcha ma'lumot va yakunlash</h3>
+                      <p class="panel__subtext">Mayda texnikalarni, izohlarni kiriting va saqlashdan oldin umumiy ko'rinishni tekshiring.</p>
+                    </div>
+
+                    <div class="wizard-panel__grid">
+                      <label class="field field--full">
+                        <span>Qo'shimcha mayda texnikalar</span>
+                        <input id="accessories" type="text" placeholder="Masalan: Dock, sichqoncha, ryukzak, quvvatlagich">
+                      </label>
+
+                      <label class="field field--full">
+                        <span>Izoh</span>
+                        <textarea id="notes" rows="4" placeholder="Texnikaning holati, nosozlik tarixi yoki qo'shimcha ichki eslatmalar"></textarea>
+                      </label>
+                    </div>
+
+                    <section class="wizard-review">
+                      <div class="wizard-review__header">
+                        <p class="panel__eyebrow">Yakuniy tekshiruv</p>
+                        <h3>Kiritiladigan yozuv xulosasi</h3>
+                      </div>
+                      <div class="wizard-review__grid" id="inventoryWizardReview"></div>
+                    </section>
+                  </section>
+                </div>
+
+                <div class="wizard-actions">
+                  <button class="ghost-button" id="inventoryWizardPrevButton" type="button">Oldingi</button>
                   <button class="secondary-button" id="resetButton" type="reset">Tozalash</button>
+                  <button class="secondary-button" id="inventoryWizardNextButton" type="button">Keyingi</button>
+                  <button class="primary-button hidden" id="submitButton" type="submit">Saqlash</button>
                 </div>
               </form>
 

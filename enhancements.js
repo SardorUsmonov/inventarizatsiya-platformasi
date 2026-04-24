@@ -390,6 +390,9 @@
       branchInput.value = record.branch || "";
       roomInput.value = record.room || "";
       deskInput.value = record.desk || "";
+      if (typeof syncInventoryWizardUI === "function") {
+        syncInventoryWizardUI();
+      }
     };
 
     resetInventoryForm = function enhancedResetInventoryForm() {
@@ -398,6 +401,9 @@
       branchInput.value = "";
       roomInput.value = "";
       deskInput.value = "";
+      if (typeof syncInventoryWizardUI === "function") {
+        syncInventoryWizardUI();
+      }
     };
 
     getUserPayload = function enhancedGetUserPayload() {
