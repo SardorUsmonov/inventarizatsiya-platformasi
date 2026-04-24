@@ -80,6 +80,14 @@ const heroChartSummaryElement = document.querySelector("#heroChartSummary");
 const heroStatusCountPillElement = document.querySelector("#heroStatusCountPill");
 const heroLeadingStatusPillElement = document.querySelector("#heroLeadingStatusPill");
 const heroEmptyNoteElement = document.querySelector("#heroEmptyNote");
+const heroInUsePercentElement = document.querySelector("#heroInUsePercent");
+const heroInUsePercentSummaryElement = document.querySelector("#heroInUsePercentSummary");
+const heroRiskPercentElement = document.querySelector("#heroRiskPercent");
+const heroRiskPercentSummaryElement = document.querySelector("#heroRiskPercentSummary");
+const heroWarrantyInlineElement = document.querySelector("#heroWarrantyInline");
+const heroWarrantyInlineSummaryElement = document.querySelector("#heroWarrantyInlineSummary");
+const heroAccessoryInlineElement = document.querySelector("#heroAccessoryInline");
+const heroAccessoryInlineSummaryElement = document.querySelector("#heroAccessoryInlineSummary");
 const heroDepartmentMeterElement = document.querySelector("#heroDepartmentMeter");
 const heroDepartmentSummaryElement = document.querySelector("#heroDepartmentSummary");
 const heroActiveMeterElement = document.querySelector("#heroActiveMeter");
@@ -882,6 +890,7 @@ function renderHeroVisualization(stats, overview) {
   const totalDepartments = Number(stats.totalDepartments) || 0;
   const activeDevices = Number(stats.activeDevices) || 0;
   const attentionCount = Number(stats.attentionCount) || 0;
+  const accessoryCount = Number(stats.accessoryCount) || 0;
   const warrantyExpiringCount = Number(stats.warrantyExpiringCount) || 0;
   const repairCount = Number(stats.repairCount) || 0;
   const primaryDepartment = overview?.byDepartment?.[0] || null;
@@ -904,6 +913,22 @@ function renderHeroVisualization(stats, overview) {
     : "Yozuv kutilmoqda";
   heroEmptyNoteElement.classList.toggle("hidden", Boolean(totalRecords));
   renderHeroStatusLegend(statusItems, totalRecords);
+  heroInUsePercentElement.textContent = formatPercent(activeDevices, totalRecords);
+  heroInUsePercentSummaryElement.textContent = totalRecords
+    ? `${activeDevices} ta aktiv ayni paytda foydalanishda.`
+    : "Faol ulush yozuvlar bilan chiqadi.";
+  heroRiskPercentElement.textContent = formatPercent(attentionCount, totalRecords);
+  heroRiskPercentSummaryElement.textContent = totalRecords
+    ? `${attentionCount} ta aktiv alohida nazorat talab qiladi.`
+    : "Riskdagi yozuvlar shu yerda jamlanadi.";
+  heroWarrantyInlineElement.textContent = warrantyExpiringCount;
+  heroWarrantyInlineSummaryElement.textContent = totalRecords
+    ? `${formatPercent(warrantyExpiringCount, totalRecords)} ulush 30 kun ichida tugashi mumkin.`
+    : "30 kun ichidagi tugashlar ko'rinadi.";
+  heroAccessoryInlineElement.textContent = accessoryCount;
+  heroAccessoryInlineSummaryElement.textContent = totalRecords
+    ? `${formatPercent(accessoryCount, totalRecords)} yozuvda qo'shimcha texnika bor.`
+    : "Dock va boshqa jamlanmalar soni.";
 
   setHeroMeter(heroDepartmentMeterElement, totalRecords ? ((primaryDepartment?.total || 0) / totalRecords) * 100 : 0);
   heroDepartmentSummaryElement.textContent = totalDepartments
