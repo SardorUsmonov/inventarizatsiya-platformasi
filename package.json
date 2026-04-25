@@ -21,9 +21,6 @@
   "engines": {
     "node": ">=24"
   },
-  "devDependencies": {
-    "puppeteer-core": "^24.25.0"
-  },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "exceljs": "^4.4.0",
@@ -33,5 +30,8 @@
   },
   "devDependencies": {
     "puppeteer-core": "^24.42.0"
+  },
+  "overrides": {
+    "uuid": "^14.0.0"
   }
 }

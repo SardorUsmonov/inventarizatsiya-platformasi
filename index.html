@@ -55,6 +55,36 @@
 
   <div class="page-shell hidden" id="appShell">
     <div class="app-layout">
+      <header class="topbar">
+        <div>
+          <p class="topbar__eyebrow">Inventar boshqaruv markazi</p>
+          <h2 class="topbar__title">Boshqaruv paneli</h2>
+        </div>
+
+        <div class="topbar__actions">
+          <div class="session-chip">
+            <div class="session-chip__meta">
+              <span class="session-chip__label">Aktiv foydalanuvchi</span>
+              <strong id="sessionUser">-</strong>
+              <span class="session-chip__role" id="sessionRole">-</span>
+            </div>
+            <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
+          </div>
+
+          <button class="ghost-button theme-toggle" id="themeToggleButton" type="button" aria-live="polite">Tungi rejim</button>
+
+          <div class="global-search" id="globalSearchBox">
+            <label class="search search--compact">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
+              </svg>
+              <input id="globalSearchInput" type="search" placeholder="Umumiy qidiruv: aktiv, bo'lim, audit log, foydalanuvchi">
+            </label>
+            <div class="search-results hidden" id="globalSearchResults"></div>
+          </div>
+        </div>
+      </header>
+
       <aside class="sidebar">
         <div class="sidebar__brand">
           <div class="brand-lockup brand-lockup--compact">
@@ -97,36 +127,6 @@
       </aside>
 
       <div class="app-main">
-        <header class="topbar">
-          <div>
-            <p class="topbar__eyebrow">Inventar boshqaruv markazi</p>
-            <h2 class="topbar__title">Boshqaruv paneli</h2>
-          </div>
-
-          <div class="topbar__actions">
-            <div class="session-chip">
-              <div class="session-chip__meta">
-                <span class="session-chip__label">Aktiv foydalanuvchi</span>
-                <strong id="sessionUser">-</strong>
-                <span class="session-chip__role" id="sessionRole">-</span>
-              </div>
-              <button class="ghost-button" id="logoutButton" type="button">Chiqish</button>
-            </div>
-
-            <button class="ghost-button theme-toggle" id="themeToggleButton" type="button" aria-live="polite">Tungi rejim</button>
-
-            <div class="global-search" id="globalSearchBox">
-              <label class="search search--compact">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
-                </svg>
-                <input id="globalSearchInput" type="search" placeholder="Umumiy qidiruv: aktiv, bo'lim, audit log, foydalanuvchi">
-              </label>
-              <div class="search-results hidden" id="globalSearchResults"></div>
-            </div>
-          </div>
-        </header>
-
         <div class="status-banner status-banner--error hidden" id="passwordChangeNotice" role="alert">
           Xavfsizlik uchun parolni yangilash majburiy. Avval yangi parol o'rnating.
         </div>
