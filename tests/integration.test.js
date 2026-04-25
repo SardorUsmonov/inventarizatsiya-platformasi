@@ -146,6 +146,62 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(audit.response.status, 200);
   assert.ok(audit.payload.logs.length >= 1);
 
+  const transferred = await admin.request(`/api/inventory/${record.payload.record.id}/transfer`, {
+    body: {
+      assetStatus: "in_use",
+      departmentId: department.payload.department.id,
+      notes: "Integration test transfer",
+      toHolder: "Vali Rahimov",
+      transferDate: "2026-02-15",
+    },
+    method: "POST",
+  });
+  assert.equal(transferred.response.status, 201);
+  assert.equal(transferred.payload.record.currentHolder, "Vali Rahimov");
+  assert.equal(transferred.payload.transfer.fromHolder, "Ali Karimov");
+
+  const transferAudit = await admin.request("/api/audit-logs?entityType=inventory&search=transfer");
+  assert.equal(transferAudit.response.status, 200);
+  assert.ok(transferAudit.payload.logs.some((log) => log.action === "inventory.transfer"));
+
+  const duplicateWorkbook = new ExcelJS.Workbook();
+  const duplicateSheet = duplicateWorkbook.addWorksheet("Inventar");
+  duplicateSheet.addRow([
+    "Ism",
+    "Familya",
+    "Bo'lim",
+    "Texnika nomi",
+    "Asset tag",
+    "Status",
+    "Holati",
+    "Hozir kimda",
+  ]);
+  duplicateSheet.addRow([
+    "Vali",
+    "Rahimov",
+    "IT bo'limi",
+    "Dell Latitude 5520",
+    "NB-5520-01",
+    "Ishlatilmoqda",
+    "Yaxshi",
+    "Vali Rahimov",
+  ]);
+  const duplicateBuffer = Buffer.from(await duplicateWorkbook.xlsx.writeBuffer());
+  const duplicateForm = new FormData();
+  duplicateForm.append(
+    "file",
+    new Blob([duplicateBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    "duplicate.xlsx"
+  );
+  const duplicatePreview = await admin.request("/api/inventory/import-preview", {
+    body: duplicateForm,
+    method: "POST",
+  });
+  assert.equal(duplicatePreview.response.status, 200);
+  assert.ok(duplicatePreview.payload.conflicts.some((conflict) => conflict.type === "existing_record"));
+
   const blockedDepartmentDelete = await admin.request(`/api/departments/${department.payload.department.id}`, {
     method: "DELETE",
   });

@@ -344,6 +344,18 @@ app.post("/api/inventory", requirePermission("manageInventory"), (request, respo
     return;
   }
 
+  const duplicate = findDuplicateInventoryIdentifiers(payload.data);
+
+  if (duplicate) {
+    response.status(409).json({
+      conflict: duplicate,
+      message: duplicate.field === "assetTag"
+        ? "Bunday aktiv tegi allaqachon mavjud. Inventar raqami takrorlanmasligi kerak."
+        : "Bunday serial raqam allaqachon mavjud. Konfliktni tekshirib chiqing.",
+    });
+    return;
+  }
+
   const record = database.createInventory(payload.data, request.user.id);
   database.createTransfer(record.id, {
     fromDepartment: "",
@@ -404,6 +416,18 @@ app.put("/api/inventory/:id", requirePermission("manageInventory"), (request, re
   if (!existing) {
     response.status(404).json({
       message: "Yozuv topilmadi.",
+    });
+    return;
+  }
+
+  const duplicate = findDuplicateInventoryIdentifiers(payload.data, recordId);
+
+  if (duplicate) {
+    response.status(409).json({
+      conflict: duplicate,
+      message: duplicate.field === "assetTag"
+        ? "Bunday aktiv tegi boshqa yozuvda mavjud."
+        : "Bunday serial raqam boshqa yozuvda mavjud.",
     });
     return;
   }
@@ -469,6 +493,73 @@ app.put("/api/inventory/:id", requirePermission("manageInventory"), (request, re
   response.json({
     record,
   });
+});
+
+app.post("/api/inventory/:id/transfer", requirePermission("manageInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const payload = validateTransferPayload(request.body);
+
+  if (!recordId) {
+    response.status(400).json({
+      message: "Yozuv identifikatori noto'g'ri.",
+    });
+    return;
+  }
+
+  if (!payload.ok) {
+    response.status(400).json({
+      message: payload.message,
+    });
+    return;
+  }
+
+  const existing = database.getInventoryById(recordId);
+
+  if (!existing) {
+    response.status(404).json({
+      message: "Yozuv topilmadi.",
+    });
+    return;
+  }
+
+  const department = database.getDepartmentById(payload.data.departmentId);
+
+  if (!department) {
+    response.status(400).json({
+      message: "Yangi bo'lim katalogdan topilmadi.",
+    });
+    return;
+  }
+
+  const result = database.transferInventory(recordId, payload.data, request.user.id);
+
+  database.logAudit({
+    action: "inventory.transfer",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: {
+      after: {
+        assetStatus: result.record.assetStatus,
+        currentHolder: result.record.currentHolder,
+        department: result.record.department,
+      },
+      before: {
+        assetStatus: existing.assetStatus,
+        currentHolder: existing.currentHolder,
+        department: existing.department,
+      },
+      notes: payload.data.notes,
+      transferDate: payload.data.transferDate,
+    },
+    entityId: recordId,
+    entityType: "inventory",
+    ipAddress: request.ip,
+    summary: `${existing.deviceName} aktivi ${payload.data.toHolder} ga o'tkazildi.`,
+  });
+
+  response.status(201).json(result);
 });
 
 app.delete("/api/inventory/:id", requirePermission("manageInventory"), (request, response) => {
@@ -751,25 +842,14 @@ app.post(
     }
 
     const rows = await parseInventoryWorkbook(request.file.buffer);
-    const normalizedRows = [];
-    const errors = [];
-
-    rows.forEach((row) => {
-      const validation = validateImportedInventoryRow(row);
-
-      if (!validation.ok) {
-        errors.push(`${row.rowNumber}-qator: ${validation.message}`);
-        return;
-      }
-
-      normalizedRows.push(validation.data);
-    });
+    const review = buildImportReview(rows);
 
     response.json({
-      errors,
-      previewRows: normalizedRows.slice(0, 20),
+      conflicts: review.conflicts,
+      errors: review.errors,
+      previewRows: review.rows.slice(0, 20),
       totalRows: rows.length,
-      validRows: normalizedRows.length,
+      validRows: review.rows.length,
     });
   }
 );
@@ -833,22 +913,38 @@ app.post(
       return;
     }
 
-    const normalizedRows = [];
+    const review = buildImportReview(rows);
 
-    for (const row of rows) {
-      const validation = validateImportedInventoryRow(row);
-
-      if (!validation.ok) {
-        response.status(400).json({
-          message: `${row.rowNumber}-qatorda ${validation.message}`,
-        });
-        return;
-      }
-
-      normalizedRows.push(validation.data);
+    if (review.errors.length) {
+      response.status(400).json({
+        errors: review.errors,
+        message: review.errors[0],
+      });
+      return;
     }
 
-    const result = database.importInventoryRows(normalizedRows, request.user.id);
+    const conflictStrategy = normalizeText(request.body?.conflictStrategy, 20);
+    const fileDuplicateConflicts = review.conflicts.filter((conflict) => conflict.type === "file_duplicate");
+
+    if (fileDuplicateConflicts.length) {
+      response.status(409).json({
+        conflicts: fileDuplicateConflicts,
+        message: "Excel fayl ichida takroriy aktiv tegi yoki serial raqam bor. Avval faylni tozalang.",
+      });
+      return;
+    }
+
+    if (review.conflicts.length && !["skip", "update"].includes(conflictStrategy)) {
+      response.status(409).json({
+        conflicts: review.conflicts,
+        message: "Excel importda takroriy inventar raqamlar topildi. Konflikt strategiyasini tanlang: o'tkazib yuborish yoki mavjud yozuvni yangilash.",
+      });
+      return;
+    }
+
+    const result = database.importInventoryRows(review.rows, request.user.id, {
+      conflictStrategy: conflictStrategy || "reject",
+    });
 
     database.logAudit({
       action: "inventory.import",
@@ -859,7 +955,7 @@ app.post(
       details: result,
       entityType: "inventory",
       ipAddress: request.ip,
-      summary: `${result.insertedCount} ta inventar yozuvi Excel orqali import qilindi.`,
+      summary: `${result.insertedCount} ta qo'shildi, ${result.updatedCount || 0} ta yangilandi, ${result.skippedCount || 0} ta o'tkazib yuborildi.`,
     });
 
     response.status(201).json({
@@ -1621,9 +1717,23 @@ function validateInventoryPayload(body) {
   const accessories = normalizeText(body?.accessories, 240);
   const notes = normalizeText(body?.notes, 500);
 
+  if (!assetTag) {
+    return {
+      message: "Aktiv tegi yoki inventar raqami majburiy.",
+      ok: false,
+    };
+  }
+
+  if (!/^[A-Za-z0-9._/-]{2,64}$/.test(assetTag)) {
+    return {
+      message: "Aktiv tegi faqat harf, raqam, nuqta, chiziq va slashlardan iborat bo'lishi kerak.",
+      ok: false,
+    };
+  }
+
   if (!firstName || !lastName || !currentHolder || !departmentId || !deviceId) {
     return {
-      message: "Ism, familya, bo'lim, texnika va hozirgi egasi majburiy.",
+      message: "Ism, familya, bo'lim, texnika, aktiv tegi va hozirgi egasi majburiy.",
       ok: false,
     };
   }
@@ -1698,6 +1808,140 @@ function validateInventoryPayload(body) {
   };
 }
 
+function validateTransferPayload(body) {
+  const toHolder = normalizeText(body?.toHolder, 160);
+  const departmentId = parsePositiveInteger(body?.departmentId);
+  const assetStatus = normalizeAssetStatus(body?.assetStatus);
+  const transferDate = parseDateInput(body?.transferDate) || new Date().toISOString().slice(0, 10);
+  const notes = normalizeText(body?.notes, 500);
+
+  if (!toHolder || !departmentId || !assetStatus) {
+    return {
+      message: "Yangi egasi, bo'lim va status majburiy.",
+      ok: false,
+    };
+  }
+
+  if (!isKnownAssetStatus(assetStatus)) {
+    return {
+      message: "Yangi status noto'g'ri tanlangan.",
+      ok: false,
+    };
+  }
+
+  if (body?.transferDate && !parseDateInput(body.transferDate)) {
+    return {
+      message: "O'tkazish sanasi noto'g'ri formatda.",
+      ok: false,
+    };
+  }
+
+  return {
+    data: {
+      assetStatus,
+      departmentId,
+      notes,
+      toHolder,
+      transferDate,
+    },
+    ok: true,
+  };
+}
+
+function findDuplicateInventoryIdentifiers(data, currentRecordId = 0) {
+  const byAssetTag = data.assetTag ? database.getInventoryByAssetTag(data.assetTag) : null;
+
+  if (byAssetTag && byAssetTag.id !== currentRecordId) {
+    return {
+      assetTag: byAssetTag.assetTag,
+      currentHolder: byAssetTag.currentHolder,
+      deviceName: byAssetTag.deviceName,
+      field: "assetTag",
+      recordId: byAssetTag.id,
+      value: data.assetTag,
+    };
+  }
+
+  const bySerial = data.serialNumber ? database.getInventoryBySerialNumber(data.serialNumber) : null;
+
+  if (bySerial && bySerial.id !== currentRecordId) {
+    return {
+      assetTag: bySerial.assetTag,
+      currentHolder: bySerial.currentHolder,
+      deviceName: bySerial.deviceName,
+      field: "serialNumber",
+      recordId: bySerial.id,
+      value: data.serialNumber,
+    };
+  }
+
+  return null;
+}
+
+function buildImportReview(rows) {
+  const errors = [];
+  const conflicts = [];
+  const normalizedRows = [];
+  const seenAssetTags = new Map();
+  const seenSerialNumbers = new Map();
+
+  rows.forEach((row) => {
+    const validation = validateImportedInventoryRow(row);
+
+    if (!validation.ok) {
+      errors.push(`${row.rowNumber}-qator: ${validation.message}`);
+      return;
+    }
+
+    const data = validation.data;
+    const assetTagKey = data.assetTag.toLowerCase();
+    const serialNumberKey = data.serialNumber.toLowerCase();
+
+    if (assetTagKey && seenAssetTags.has(assetTagKey)) {
+      conflicts.push({
+        field: "assetTag",
+        message: `${row.rowNumber}-qator: aktiv tegi ${seenAssetTags.get(assetTagKey)}-qatorda ham bor.`,
+        rowNumber: row.rowNumber,
+        type: "file_duplicate",
+        value: data.assetTag,
+      });
+    } else if (assetTagKey) {
+      seenAssetTags.set(assetTagKey, row.rowNumber);
+    }
+
+    if (serialNumberKey && seenSerialNumbers.has(serialNumberKey)) {
+      conflicts.push({
+        field: "serialNumber",
+        message: `${row.rowNumber}-qator: serial raqam ${seenSerialNumbers.get(serialNumberKey)}-qatorda ham bor.`,
+        rowNumber: row.rowNumber,
+        type: "file_duplicate",
+        value: data.serialNumber,
+      });
+    } else if (serialNumberKey) {
+      seenSerialNumbers.set(serialNumberKey, row.rowNumber);
+    }
+
+    const duplicate = findDuplicateInventoryIdentifiers(data);
+
+    if (duplicate) {
+      conflicts.push({
+        ...duplicate,
+        message: `${row.rowNumber}-qator: ${duplicate.value} bazada mavjud.`,
+        rowNumber: row.rowNumber,
+        type: "existing_record",
+      });
+    }
+
+    normalizedRows.push(data);
+  });
+
+  return {
+    conflicts,
+    errors,
+    rows: normalizedRows,
+  };
+}
+
 function validateImportedInventoryRow(row) {
   const firstName = normalizeText(row?.firstName, 80);
   const lastName = normalizeText(row?.lastName, 80);
@@ -1720,6 +1964,20 @@ function validateImportedInventoryRow(row) {
   const officeLocation = normalizeText(row?.officeLocation, 120);
   const accessories = normalizeText(row?.accessories, 240);
   const notes = normalizeText(row?.notes, 500);
+
+  if (!assetTag) {
+    return {
+      message: "aktiv tegi yoki inventar raqami majburiy.",
+      ok: false,
+    };
+  }
+
+  if (!/^[A-Za-z0-9._/-]{2,64}$/.test(assetTag)) {
+    return {
+      message: "aktiv tegi noto'g'ri formatda.",
+      ok: false,
+    };
+  }
 
   if (!firstName || !lastName || !department || !deviceName || !currentHolder) {
     return {

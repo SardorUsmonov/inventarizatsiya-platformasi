@@ -99,27 +99,27 @@
 
         <nav class="tabs" id="tabs" aria-label="Asosiy bo'limlar">
           <button class="tab-button is-active" data-tab-target="dashboard" type="button">
-            <span class="tab-button__icon">DB</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Dashboard</span>
           </button>
           <button class="tab-button" data-tab-target="inventory" type="button">
-            <span class="tab-button__icon">IN</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Inventar</span>
           </button>
           <button class="tab-button" data-tab-target="catalogs" type="button">
-            <span class="tab-button__icon">CT</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Kataloglar</span>
           </button>
           <button class="tab-button hidden" data-tab-target="users" id="usersTabButton" type="button">
-            <span class="tab-button__icon">US</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Foydalanuvchilar</span>
           </button>
           <button class="tab-button hidden" data-tab-target="audit" id="auditTabButton" type="button">
-            <span class="tab-button__icon">AU</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Audit log</span>
           </button>
           <button class="tab-button" data-tab-target="settings" id="settingsTabButton" type="button">
-            <span class="tab-button__icon">ST</span>
+            <span class="tab-button__icon" aria-hidden="true"></span>
             <span class="tab-button__text">Sozlamalar</span>
           </button>
         </nav>
@@ -383,41 +383,48 @@
                 <div>
                   <p class="panel__eyebrow">Umumiy ko'rinish</p>
                   <h2>Aktivlar paneli</h2>
-                  <p class="panel__subtext">Texnikalar holati, xarid sanasi, kafolat va risk nuqtalari bo'yicha umumiy ko'rinish.</p>
+                  <p class="panel__subtext">Eng muhim boshqaruv signallari: jami aktivlar, ishlatilayotganlar, kafolat va risk.</p>
+                </div>
+                <div class="row-actions dashboard-panel__actions">
+                  <button class="primary-button" id="dashboardAddAssetButton" type="button">Aktiv qo'shish</button>
+                  <button class="secondary-button" id="dashboardImportButton" type="button">Excel import</button>
                 </div>
               </div>
 
               <div class="dashboard-cards">
+                <article class="dashboard-card dashboard-card--brand">
+                  <span class="dashboard-card__label">Jami aktivlar</span>
+                  <strong class="dashboard-card__value" id="dashboardTotalCount">0</strong>
+                  <span class="dashboard-card__hint">Tizimdagi barcha ro'yxatga olingan aktivlar</span>
+                </article>
                 <article class="dashboard-card dashboard-card--primary">
                   <span class="dashboard-card__label">Ishlatilmoqda</span>
                   <strong class="dashboard-card__value" id="dashboardInUseCount">0</strong>
                   <span class="dashboard-card__hint">Xodimlarga biriktirilgan aktivlar</span>
-                </article>
-                <article class="dashboard-card dashboard-card--info">
-                  <span class="dashboard-card__label">Zaxirada</span>
-                  <strong class="dashboard-card__value" id="dashboardInStockCount">0</strong>
-                  <span class="dashboard-card__hint">Taqsimlashga tayyor texnikalar</span>
-                </article>
-                <article class="dashboard-card dashboard-card--danger">
-                  <span class="dashboard-card__label">Ta'mirda</span>
-                  <strong class="dashboard-card__value" id="dashboardRepairCount">0</strong>
-                  <span class="dashboard-card__hint">Servisga e'tibor talab qiladiganlari</span>
                 </article>
                 <article class="dashboard-card dashboard-card--warning">
                   <span class="dashboard-card__label">Kafolat yaqin</span>
                   <strong class="dashboard-card__value" id="dashboardWarrantyCount">0</strong>
                   <span class="dashboard-card__hint">30 kun ichida tugashi mumkin</span>
                 </article>
-                <article class="dashboard-card dashboard-card--success">
-                  <span class="dashboard-card__label">Qo'shimcha texnikali</span>
-                  <strong class="dashboard-card__value" id="dashboardAccessoryCount">0</strong>
-                  <span class="dashboard-card__hint">Dock, sichqoncha, sumka va boshqalar</span>
+                <article class="dashboard-card dashboard-card--danger">
+                  <span class="dashboard-card__label">E'tibor talab qiladi</span>
+                  <strong class="dashboard-card__value" id="dashboardAttentionCount">0</strong>
+                  <span class="dashboard-card__hint">Ta'mir yoki shikastlangan aktivlar</span>
                 </article>
-                <article class="dashboard-card dashboard-card--brand">
-                  <span class="dashboard-card__label">Joriy yil xaridlari</span>
-                  <strong class="dashboard-card__value" id="dashboardPurchasedThisYearCount">0</strong>
-                  <span class="dashboard-card__hint">Yil boshidan beri qo'shilgan aktivlar</span>
-                </article>
+              </div>
+            </section>
+
+            <section class="panel dashboard-empty-state hidden" id="dashboardEmptyState">
+              <div>
+                <p class="panel__eyebrow">Birinchi ishga tushirish</p>
+                <h2>Hozircha aktivlar yo'q</h2>
+                <p class="panel__subtext">Takroriy bo'sh jadvallar o'rniga tizim sizni birinchi foydali qadamga olib boradi.</p>
+              </div>
+              <div class="dashboard-empty-state__actions">
+                <button class="primary-button" data-scenario-action="assignment" type="button">Birinchi aktivni qo'shish</button>
+                <button class="secondary-button" id="dashboardEmptyImportButton" type="button">Excel orqali import</button>
+                <button class="ghost-button" data-scenario-action="department" type="button">Kataloglarni tayyorlash</button>
               </div>
             </section>
 
@@ -568,14 +575,14 @@
 
                 <div class="inventory-segment" role="tablist" aria-label="Inventar ish oynasini tanlash">
                   <button class="inventory-segment__button is-active" data-inventory-panel-target="list" type="button" role="tab" aria-controls="inventoryPanelList" aria-selected="true">
-                    <span class="inventory-segment__icon">RN</span>
+                    <span class="inventory-segment__icon" aria-hidden="true"></span>
                     <span>
                       <strong>Ro'yxat / nazorat</strong>
                       <small>Qidiruv, filtr va amallar</small>
                     </span>
                   </button>
                   <button class="inventory-segment__button" data-inventory-panel-target="create" type="button" role="tab" aria-controls="inventoryPanelCreate" aria-selected="false">
-                    <span class="inventory-segment__icon">YI</span>
+                    <span class="inventory-segment__icon" aria-hidden="true"></span>
                     <span>
                       <strong>Yangi inventar</strong>
                       <small>4 qadamli kiritish</small>
@@ -695,7 +702,7 @@
 
                       <label class="field">
                         <span>Aktiv tegi</span>
-                        <input id="assetTag" type="text" placeholder="Masalan: NB-024">
+                        <input id="assetTag" type="text" placeholder="Masalan: NB-024" pattern="[A-Za-z0-9._/-]{2,64}" required>
                       </label>
 
                       <label class="field">
@@ -985,6 +992,11 @@
                   </div>
 
                   <div class="row-actions">
+                    <select class="toolbar-select" id="importConflictStrategy" aria-label="Import konflikt strategiyasi">
+                      <option value="">Konflikt bo'lsa to'xtatish</option>
+                      <option value="skip">Mavjudlarini o'tkazib yuborish</option>
+                      <option value="update">Mavjud yozuvlarni yangilash</option>
+                    </select>
                     <button class="primary-button" id="confirmImportButton" type="button">Importni tasdiqlash</button>
                     <button class="ghost-button" id="cancelImportPreviewButton" type="button">Bekor qilish</button>
                   </div>
@@ -1011,18 +1023,13 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>Ism</th>
-                      <th>Familya</th>
-                      <th>Bo'lim</th>
+                      <th>Inventar raqam</th>
                       <th>Texnika</th>
-                      <th>Aktiv</th>
+                      <th>Egasi</th>
+                      <th>Bo'lim</th>
                       <th>Holati</th>
-                      <th>Holat</th>
-                      <th>Xarid / Kafolat</th>
-                      <th>Qo'shimcha</th>
-                      <th>Oldin kimda</th>
-                      <th>Hozir kimda</th>
-                      <th>Yangilangan</th>
+                      <th>Lokatsiya</th>
+                      <th>Kafolat</th>
                       <th>Amallar</th>
                     </tr>
                   </thead>
@@ -1053,9 +1060,47 @@
                   </div>
 
                   <div class="row-actions">
+                    <button class="primary-button" id="detailTransferButton" type="button">Aktivni o'tkazish</button>
+                    <button class="secondary-button" id="detailEditButton" type="button">Tahrirlash</button>
+                    <button class="secondary-button" id="detailRepairButton" type="button">Ta'mirga yuborish</button>
+                    <button class="ghost-button" id="detailRetireButton" type="button">Hisobdan chiqarish</button>
                     <button class="ghost-button" id="refreshDetailButton" type="button">Yangilash</button>
                   </div>
                 </div>
+
+                <form class="transfer-panel hidden" id="transferForm">
+                  <div>
+                    <p class="panel__eyebrow">Alohida transfer jarayoni</p>
+                    <h3>Aktivni boshqa xodim yoki bo'limga o'tkazish</h3>
+                    <p class="panel__subtext">Bu amal aktiv tarixiga va global audit logga alohida yoziladi.</p>
+                  </div>
+                  <div class="inventory-form inventory-form--compact">
+                    <label class="field">
+                      <span>Yangi egasi</span>
+                      <input id="transferHolderInput" type="text" placeholder="Masalan: Dilshod Karimov" required>
+                    </label>
+                    <label class="field">
+                      <span>Yangi bo'lim</span>
+                      <select id="transferDepartmentSelect" required></select>
+                    </label>
+                    <label class="field">
+                      <span>Yangi status</span>
+                      <select id="transferStatusSelect" required></select>
+                    </label>
+                    <label class="field">
+                      <span>O'tkazish sanasi</span>
+                      <input id="transferDateInput" type="date" required>
+                    </label>
+                    <label class="field field--full">
+                      <span>Izoh / asos</span>
+                      <textarea id="transferNotesInput" rows="3" placeholder="Masalan: yangi xodimga biriktirildi"></textarea>
+                    </label>
+                  </div>
+                  <div class="form-actions">
+                    <button class="primary-button" id="transferSubmitButton" type="submit">Transferni tasdiqlash</button>
+                    <button class="ghost-button" id="transferCancelButton" type="button">Bekor qilish</button>
+                  </div>
+                </form>
 
                 <div class="detail-grid">
                   <section class="mini-panel">

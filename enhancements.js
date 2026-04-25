@@ -22,6 +22,7 @@
   const importPreviewSummary = document.querySelector("#importPreviewSummary");
   const importPreviewErrors = document.querySelector("#importPreviewErrors");
   const importPreviewTableBody = document.querySelector("#importPreviewTableBody");
+  const importConflictStrategySelect = document.querySelector("#importConflictStrategy");
   const confirmImportButton = document.querySelector("#confirmImportButton");
   const cancelImportPreviewButton = document.querySelector("#cancelImportPreviewButton");
   const paginationSummary = document.querySelector("#paginationSummary");
@@ -48,6 +49,18 @@
   const attachmentUploadButton = document.querySelector("#attachmentUploadButton");
   const attachmentList = document.querySelector("#attachmentList");
   const refreshDetailButton = document.querySelector("#refreshDetailButton");
+  const detailEditButton = document.querySelector("#detailEditButton");
+  const detailTransferButton = document.querySelector("#detailTransferButton");
+  const detailRepairButton = document.querySelector("#detailRepairButton");
+  const detailRetireButton = document.querySelector("#detailRetireButton");
+  const transferForm = document.querySelector("#transferForm");
+  const transferHolderInput = document.querySelector("#transferHolderInput");
+  const transferDepartmentSelect = document.querySelector("#transferDepartmentSelect");
+  const transferStatusSelect = document.querySelector("#transferStatusSelect");
+  const transferDateInput = document.querySelector("#transferDateInput");
+  const transferNotesInput = document.querySelector("#transferNotesInput");
+  const transferSubmitButton = document.querySelector("#transferSubmitButton");
+  const transferCancelButton = document.querySelector("#transferCancelButton");
   const userMustChangePasswordInput = document.querySelector("#userMustChangePassword");
   const passwordChangeForm = document.querySelector("#passwordChangeForm");
   const currentPasswordInput = document.querySelector("#currentPasswordInput");
@@ -79,6 +92,7 @@
       totalPages: 1,
     },
     pendingAttachmentFile: null,
+    pendingImportHasBlockingConflicts: false,
     pendingImportFile: null,
     pendingSavedFilters: null,
     pendingRestoreFile: null,
@@ -270,6 +284,9 @@
 
       records.forEach((record) => {
         const row = document.createElement("tr");
+        row.className = "is-clickable";
+        row.tabIndex = 0;
+        row.dataset.recordId = String(record.id);
         row.classList.toggle("is-selected", enhancementState.detailRecordId === record.id);
         row.addEventListener("click", (event) => {
           if (event.target.closest("button, a")) {
@@ -278,31 +295,35 @@
 
           loadInventoryDetail(record.id).catch(handleError);
         });
+        row.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            loadInventoryDetail(record.id).catch(handleError);
+          }
+        });
 
-        appendCell(row, "Ism", record.firstName);
-        appendCell(row, "Familya", record.lastName);
-        appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
+        appendStackCell(row, "Inventar raqam", [
+          record.assetTag || "Tag biriktirilmagan",
+          record.serialNumber ? `Serial: ${record.serialNumber}` : "",
+        ]);
         appendStackCell(row, "Texnika", [
           record.deviceName,
-          [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || record.officeLocation || "",
+          record.supplier || record.purchaseDate ? [record.supplier, formatDateOrDash(record.purchaseDate)].filter(Boolean).join(" · ") : "",
         ]);
-        appendStackCell(row, "Aktiv", [
-          record.assetTag || "Tag biriktirilmagan",
-          record.serialNumber || "Serial raqam yo'q",
+        appendStackCell(row, "Egasi", [
+          record.currentHolder || "-",
+          [record.firstName, record.lastName].filter(Boolean).join(" "),
         ]);
+        appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
         appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
-        appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
-        appendStackCell(row, "Xarid / Kafolat", [
-          record.purchaseDate ? `Xarid: ${formatShortDate(record.purchaseDate)}` : "Xarid sanasi yo'q",
+        appendStackCell(row, "Lokatsiya", [
+          record.officeLocation || [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || "-",
+          getConditionStatusLabel(record.conditionStatus),
+        ]);
+        appendStackCell(row, "Kafolat", [
           record.warrantyUntil ? `Kafolat: ${formatShortDate(record.warrantyUntil)}` : "Kafolat kiritilmagan",
+          getWarrantyHint(record.warrantyUntil),
         ]);
-        appendStackCell(row, "Qo'shimcha", [
-          record.accessories || "Qo'shimcha texnika yo'q",
-          record.purchasePrice ? `${formatCurrency(record.purchasePrice)} so'm` : record.notes || "",
-        ]);
-        appendCell(row, "Oldin kimda", record.previousHolder || "-");
-        appendCell(row, "Hozir kimda", record.currentHolder);
-        appendCell(row, "Yangilangan", formatDate(record.updatedAt));
 
         const actionsCell = document.createElement("td");
         actionsCell.dataset.label = "Amallar";
@@ -342,7 +363,9 @@
       });
 
       emptyState.style.display = records.length ? "none" : "block";
-      emptyStateText.textContent = searchInput.value.trim() ? "Filter bo'yicha mos yozuv topilmadi." : "Hali birorta inventar yozuvi mavjud emas.";
+      emptyStateText.textContent = searchInput.value.trim()
+        ? "Filter bo'yicha mos yozuv topilmadi. Filtrni tozalang yoki boshqa so'z bilan qidiring."
+        : "Hozircha aktiv yo'q. Birinchi aktivni qo'shing yoki Excel orqali import qiling.";
       totalRecordsElement.textContent = stats.totalRecords || 0;
       totalDepartmentsElement.textContent = stats.totalDepartments || 0;
       activeDevicesElement.textContent = stats.activeDevices || 0;
@@ -494,6 +517,12 @@
       refreshAuditButton.disabled = !canViewAudit || mustChangePassword;
       archiveAuditButton.disabled = !canViewAudit || mustChangePassword;
       auditAutomationNote.classList.toggle("hidden", !canViewAudit);
+      detailEditButton.classList.toggle("hidden", !canManageInventory);
+      detailTransferButton.classList.toggle("hidden", !canManageInventory);
+      detailRepairButton.classList.toggle("hidden", !canManageInventory);
+      detailRetireButton.classList.toggle("hidden", !canManageInventory);
+      transferForm.classList.toggle("hidden", transferForm.classList.contains("hidden") || !canManageInventory || mustChangePassword || !enhancementState.detailRecordId);
+      setFormEnabled(transferForm, canManageInventory && !mustChangePassword && Boolean(enhancementState.detailRecordId));
       attachmentPickButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       attachmentUploadButton.disabled = !state.permissions.manageAttachments || mustChangePassword || !enhancementState.detailRecordId;
       serviceLogSubmitButton.disabled = !state.permissions.manageService || mustChangePassword || !enhancementState.detailRecordId;
@@ -608,6 +637,7 @@
     previewImportFileInput.addEventListener("change", handleImportPreviewSelection);
     cancelImportPreviewButton.addEventListener("click", clearImportPreview);
     confirmImportButton.addEventListener("click", confirmPreviewImport);
+    importConflictStrategySelect.addEventListener("change", updateImportConfirmState);
 
     refreshDetailButton.addEventListener("click", () => {
       if (!enhancementState.detailRecordId) {
@@ -615,6 +645,28 @@
       }
 
       loadInventoryDetail(enhancementState.detailRecordId).catch(handleError);
+    });
+    detailEditButton.addEventListener("click", () => {
+      const record = enhancementState.detail?.record;
+
+      if (!record) {
+        showStatus("Avval aktiv tanlang.", "error");
+        return;
+      }
+
+      originalFillInventoryForm(record);
+      purchasePriceInput.value = record.purchasePrice || "";
+      branchInput.value = record.branch || "";
+      roomInput.value = record.room || "";
+      deskInput.value = record.desk || "";
+    });
+    detailTransferButton.addEventListener("click", () => openTransferPanel());
+    detailRepairButton.addEventListener("click", () => openTransferPanel("repair"));
+    detailRetireButton.addEventListener("click", () => openTransferPanel("retired"));
+    transferCancelButton.addEventListener("click", () => transferForm.classList.add("hidden"));
+    transferForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitTransfer().catch(handleError);
     });
 
     serviceLogForm.addEventListener("submit", async (event) => {
@@ -845,7 +897,7 @@
 
       renderImportPreview(preview);
       importPreviewPanel.classList.remove("hidden");
-      confirmImportButton.disabled = preview.validRows === 0;
+      updateImportConfirmState();
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
@@ -855,10 +907,21 @@
 
   function renderImportPreview(preview) {
     importPreviewTableBody.innerHTML = "";
-    importPreviewSummary.textContent = `${preview.validRows || 0} ta yaroqli qator, jami ${preview.totalRows || 0} ta satr topildi.`;
+    const conflicts = preview.conflicts || [];
+    const errors = preview.errors || [];
+    const fileDuplicateConflicts = conflicts.filter((conflict) => conflict.type === "file_duplicate");
+    enhancementState.pendingImportHasBlockingConflicts = Boolean(errors.length || fileDuplicateConflicts.length);
+    importPreviewSummary.textContent = `${preview.validRows || 0} ta yaroqli qator, jami ${preview.totalRows || 0} ta satr. ${conflicts.length} konflikt.`;
 
-    if (preview.errors?.length) {
-      importPreviewErrors.textContent = preview.errors.join(" ");
+    if (errors.length || conflicts.length) {
+      importPreviewErrors.innerHTML = "";
+      [...errors, ...conflicts.map((conflict) => conflict.message || `${conflict.rowNumber}-qator: konflikt topildi.`)]
+        .slice(0, 8)
+        .forEach((message) => {
+          const item = document.createElement("div");
+          item.textContent = message;
+          importPreviewErrors.appendChild(item);
+        });
       importPreviewErrors.classList.remove("hidden");
     } else {
       importPreviewErrors.classList.add("hidden");
@@ -884,6 +947,14 @@
     }
   }
 
+  function updateImportConfirmState() {
+    const hasAnyConflict = !importPreviewErrors.classList.contains("hidden");
+    const needsStrategy = hasAnyConflict && !enhancementState.pendingImportHasBlockingConflicts;
+    confirmImportButton.disabled = !enhancementState.pendingImportFile ||
+      enhancementState.pendingImportHasBlockingConflicts ||
+      (needsStrategy && !importConflictStrategySelect.value);
+  }
+
   async function confirmPreviewImport() {
     if (!enhancementState.pendingImportFile) {
       showStatus("Importni ko'rib chiqish uchun fayl tanlanmagan.", "error");
@@ -895,6 +966,9 @@
     try {
       const formData = new FormData();
       formData.append("file", enhancementState.pendingImportFile);
+      if (importConflictStrategySelect.value) {
+        formData.append("conflictStrategy", importConflictStrategySelect.value);
+      }
       const response = await request("/api/inventory/import", {
         body: formData,
         method: "POST",
@@ -903,7 +977,7 @@
       clearImportPreview();
       await refreshDashboardData();
       await loadInventory();
-      showStatus(`${response.result.insertedCount} ta yozuv ko'rib chiqishdan so'ng import qilindi.`);
+      showStatus(`${response.result.insertedCount || 0} ta qo'shildi, ${response.result.updatedCount || 0} ta yangilandi, ${response.result.skippedCount || 0} ta o'tkazib yuborildi.`);
     } catch (error) {
       showStatus(error.message, "error");
     } finally {
@@ -913,7 +987,9 @@
 
   function clearImportPreview() {
     enhancementState.pendingImportFile = null;
+    enhancementState.pendingImportHasBlockingConflicts = false;
     previewImportFileInput.value = "";
+    importConflictStrategySelect.value = "";
     importPreviewPanel.classList.add("hidden");
     importPreviewErrors.classList.add("hidden");
     importPreviewErrors.textContent = "";
@@ -949,6 +1025,7 @@
     attachmentList.innerHTML = "";
     detailQrImage.removeAttribute("src");
     detailQrLink.removeAttribute("href");
+    transferForm.classList.add("hidden");
     applyPermissionUI();
   }
 
@@ -962,8 +1039,8 @@
 
     const record = detail.record;
     inventoryDetailPanel.classList.remove("hidden");
-    detailTitle.textContent = `${record.deviceName} / ${record.assetTag || "Tag yo'q"}`;
-    detailSubtitle.textContent = `${record.firstName} ${record.lastName} | ${record.currentHolder} | ${localizeDepartmentName(record.department)}`;
+    detailTitle.textContent = `${record.assetTag || "Inventar raqamsiz"} · ${record.deviceName}`;
+    detailSubtitle.textContent = `${record.currentHolder || "Egasi ko'rsatilmagan"} · ${localizeDepartmentName(record.department)} · ${getAssetStatusLabel(record.assetStatus)}`;
 
     renderDetailMeta(record);
     renderTransferTimeline(detail.transfers || []);
@@ -972,7 +1049,60 @@
     detailQrImage.src = detail.qrUrl;
     detailQrLink.href = detail.qrUrl;
     detailQrImage.classList.toggle("hidden", false);
+    transferForm.classList.add("hidden");
     applyPermissionUI();
+  }
+
+  function openTransferPanel(statusOverride = "") {
+    const record = enhancementState.detail?.record;
+
+    if (!record) {
+      showStatus("Avval aktiv tanlang.", "error");
+      return;
+    }
+
+    transferHolderInput.value = record.currentHolder || "";
+    transferDepartmentSelect.value = String(record.departmentId || "");
+    transferStatusSelect.value = statusOverride || record.assetStatus || state.assetStatuses[0]?.value || "";
+    transferDateInput.value = new Date().toISOString().slice(0, 10);
+    transferNotesInput.value = statusOverride === "repair"
+      ? "Servisga yuborildi."
+      : statusOverride === "retired"
+        ? "Hisobdan chiqarildi."
+        : "";
+    transferForm.classList.remove("hidden");
+    transferHolderInput.focus();
+  }
+
+  async function submitTransfer() {
+    if (!enhancementState.detailRecordId) {
+      showStatus("Transfer uchun aktiv tanlanmagan.", "error");
+      return;
+    }
+
+    transferSubmitButton.disabled = true;
+
+    try {
+      await request(`/api/inventory/${enhancementState.detailRecordId}/transfer`, {
+        body: {
+          assetStatus: transferStatusSelect.value,
+          departmentId: transferDepartmentSelect.value,
+          notes: transferNotesInput.value.trim(),
+          toHolder: transferHolderInput.value.trim(),
+          transferDate: transferDateInput.value,
+        },
+        method: "POST",
+      });
+
+      await refreshDashboardData();
+      await loadInventory({ silent: true });
+      await loadInventoryDetail(enhancementState.detailRecordId, { silent: true });
+      showStatus("Aktiv transferi audit bilan saqlandi.");
+    } catch (error) {
+      showStatus(error.message, "error");
+    } finally {
+      transferSubmitButton.disabled = !state.permissions.manageInventory;
+    }
   }
 
   function renderDetailMeta(record) {

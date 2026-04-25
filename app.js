@@ -74,16 +74,32 @@ const filterDepartmentSelect = document.querySelector("#filterDepartmentId");
 const filterDeviceSelect = document.querySelector("#filterDeviceId");
 const filterAssetStatusSelect = document.querySelector("#filterAssetStatus");
 const filterConditionStatusSelect = document.querySelector("#filterConditionStatus");
+const sortBySelect = document.querySelector("#sortBySelect");
+const sortDirectionSelect = document.querySelector("#sortDirectionSelect");
+const pageSizeSelect = document.querySelector("#pageSizeSelect");
 const refreshButton = document.querySelector("#refreshButton");
 const downloadTemplateButton = document.querySelector("#downloadTemplateButton");
 const importButton = document.querySelector("#importButton");
 const importFileInput = document.querySelector("#importFileInput");
+const previewImportButton = document.querySelector("#previewImportButton");
+const previewImportFileInput = document.querySelector("#previewImportFileInput");
+const importPreviewPanel = document.querySelector("#importPreviewPanel");
+const importPreviewSummary = document.querySelector("#importPreviewSummary");
+const importPreviewErrors = document.querySelector("#importPreviewErrors");
+const importPreviewTableBody = document.querySelector("#importPreviewTableBody");
+const importConflictStrategySelect = document.querySelector("#importConflictStrategy");
+const confirmImportButton = document.querySelector("#confirmImportButton");
+const cancelImportPreviewButton = document.querySelector("#cancelImportPreviewButton");
 const exportExcelButton = document.querySelector("#exportExcelButton");
 const exportCsvButton = document.querySelector("#exportCsvButton");
 const inventoryTableBody = document.querySelector("#inventoryTableBody");
 const emptyState = document.querySelector("#emptyState");
 const emptyStateText = document.querySelector("#emptyStateText");
 const tableSummary = document.querySelector("#tableSummary");
+const paginationSummary = document.querySelector("#paginationSummary");
+const paginationIndicator = document.querySelector("#paginationIndicator");
+const previousPageButton = document.querySelector("#previousPageButton");
+const nextPageButton = document.querySelector("#nextPageButton");
 const totalRecordsElement = document.querySelector("#totalRecords");
 const totalDepartmentsElement = document.querySelector("#totalDepartments");
 const activeDevicesElement = document.querySelector("#activeDevices");
@@ -123,12 +139,14 @@ const heroActiveSummaryElement = document.querySelector("#heroActiveSummary");
 const heroAttentionCountElement = document.querySelector("#heroAttentionCount");
 const heroAttentionMeterElement = document.querySelector("#heroAttentionMeter");
 const heroAttentionSummaryElement = document.querySelector("#heroAttentionSummary");
+const dashboardTotalCountElement = document.querySelector("#dashboardTotalCount");
 const dashboardInUseCountElement = document.querySelector("#dashboardInUseCount");
-const dashboardInStockCountElement = document.querySelector("#dashboardInStockCount");
-const dashboardRepairCountElement = document.querySelector("#dashboardRepairCount");
 const dashboardWarrantyCountElement = document.querySelector("#dashboardWarrantyCount");
-const dashboardAccessoryCountElement = document.querySelector("#dashboardAccessoryCount");
-const dashboardPurchasedThisYearCountElement = document.querySelector("#dashboardPurchasedThisYearCount");
+const dashboardAttentionCountElement = document.querySelector("#dashboardAttentionCount");
+const dashboardEmptyState = document.querySelector("#dashboardEmptyState");
+const dashboardAddAssetButton = document.querySelector("#dashboardAddAssetButton");
+const dashboardImportButton = document.querySelector("#dashboardImportButton");
+const dashboardEmptyImportButton = document.querySelector("#dashboardEmptyImportButton");
 const dashboardStatusList = document.querySelector("#dashboardStatusList");
 const dashboardConditionList = document.querySelector("#dashboardConditionList");
 const dashboardDepartmentList = document.querySelector("#dashboardDepartmentList");
@@ -181,6 +199,37 @@ const refreshAuditButton = document.querySelector("#refreshAuditButton");
 const auditTableBody = document.querySelector("#auditTableBody");
 const auditEmptyState = document.querySelector("#auditEmptyState");
 const scenarioActionButtons = [...document.querySelectorAll("[data-scenario-action]")];
+const inventoryDetailPanel = document.querySelector("#inventoryDetailPanel");
+const detailTitle = document.querySelector("#detailTitle");
+const detailSubtitle = document.querySelector("#detailSubtitle");
+const detailMetaList = document.querySelector("#detailMetaList");
+const detailQrImage = document.querySelector("#detailQrImage");
+const detailQrLink = document.querySelector("#detailQrLink");
+const transferTimeline = document.querySelector("#transferTimeline");
+const refreshDetailButton = document.querySelector("#refreshDetailButton");
+const detailEditButton = document.querySelector("#detailEditButton");
+const detailTransferButton = document.querySelector("#detailTransferButton");
+const detailRepairButton = document.querySelector("#detailRepairButton");
+const detailRetireButton = document.querySelector("#detailRetireButton");
+const transferForm = document.querySelector("#transferForm");
+const transferHolderInput = document.querySelector("#transferHolderInput");
+const transferDepartmentSelect = document.querySelector("#transferDepartmentSelect");
+const transferStatusSelect = document.querySelector("#transferStatusSelect");
+const transferDateInput = document.querySelector("#transferDateInput");
+const transferNotesInput = document.querySelector("#transferNotesInput");
+const transferSubmitButton = document.querySelector("#transferSubmitButton");
+const transferCancelButton = document.querySelector("#transferCancelButton");
+const serviceLogForm = document.querySelector("#serviceLogForm");
+const serviceDateInput = document.querySelector("#serviceDateInput");
+const serviceTypeInput = document.querySelector("#serviceTypeInput");
+const serviceVendorInput = document.querySelector("#serviceVendorInput");
+const serviceCostInput = document.querySelector("#serviceCostInput");
+const serviceNotesInput = document.querySelector("#serviceNotesInput");
+const serviceLogList = document.querySelector("#serviceLogList");
+const attachmentFileInput = document.querySelector("#attachmentFileInput");
+const attachmentPickButton = document.querySelector("#attachmentPickButton");
+const attachmentUploadButton = document.querySelector("#attachmentUploadButton");
+const attachmentList = document.querySelector("#attachmentList");
 
 const state = {
   activeTab: "dashboard",
@@ -201,11 +250,20 @@ const state = {
   departments: [],
   devices: [],
   inventoryRecords: [],
+  inventoryPagination: {
+    page: 1,
+    pageSize: 25,
+    totalPages: 1,
+  },
   inventoryRequestController: null,
   inventoryWizardStep: 0,
+  importPreviewFile: null,
+  importPreviewHasBlockingConflicts: false,
   permissions: {},
   roles: [],
   searchDebounceId: 0,
+  selectedInventoryDetail: null,
+  selectedInventoryId: 0,
   statusTimeoutId: 0,
   user: null,
   users: [],
@@ -299,6 +357,10 @@ tabButtons.forEach((button) => {
 scenarioActionButtons.forEach((button) => {
   button.addEventListener("click", () => runScenario(button.dataset.scenarioAction));
 });
+
+dashboardAddAssetButton?.addEventListener("click", () => runScenario("assignment"));
+dashboardImportButton?.addEventListener("click", () => openImportPreviewPicker());
+dashboardEmptyImportButton?.addEventListener("click", () => openImportPreviewPicker());
 
 catalogPanelButtons.forEach((button) => {
   button.addEventListener("click", () => activateCatalogPanel(button.dataset.catalogPanelTarget));
@@ -430,15 +492,15 @@ refreshButton.addEventListener("click", async () => {
 
 searchInput.addEventListener("input", () => {
   window.clearTimeout(state.searchDebounceId);
-  state.searchDebounceId = window.setTimeout(() => loadInventory({ silent: true }).catch(handleError), 280);
+  state.searchDebounceId = window.setTimeout(() => reloadInventoryFromFirstPage({ silent: true }).catch(handleError), 280);
 });
 
-filterDepartmentSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
-filterDeviceSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
-filterAssetStatusSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
-filterConditionStatusSelect.addEventListener("change", () => loadInventory({ silent: true }).catch(handleError));
+filterDepartmentSelect.addEventListener("change", () => reloadInventoryFromFirstPage({ silent: true }).catch(handleError));
+filterDeviceSelect.addEventListener("change", () => reloadInventoryFromFirstPage({ silent: true }).catch(handleError));
+filterAssetStatusSelect.addEventListener("change", () => reloadInventoryFromFirstPage({ silent: true }).catch(handleError));
+filterConditionStatusSelect.addEventListener("change", () => reloadInventoryFromFirstPage({ silent: true }).catch(handleError));
 downloadTemplateButton.addEventListener("click", () => window.open("/api/inventory/template", "_blank", "noopener"));
-importButton.addEventListener("click", () => importFileInput.click());
+importButton.addEventListener("click", () => openImportPreviewPicker());
 exportExcelButton.addEventListener("click", () => downloadInventory("/api/inventory/export/xlsx"));
 exportCsvButton.addEventListener("click", () => downloadInventory("/api/inventory/export/csv"));
 
@@ -550,7 +612,6 @@ userForm.addEventListener("submit", async (event) => {
 });
 
 cancelUserEditButton.addEventListener("click", resetUserForm);
-
 auditSearchInput.addEventListener("input", () => {
   window.clearTimeout(state.auditDebounceId);
   state.auditDebounceId = window.setTimeout(() => loadAuditLogs({ silent: true }).catch(handleError), 280);
@@ -721,6 +782,11 @@ async function loadInventory(options = {}) {
     url.searchParams.set("conditionStatus", filterConditionStatusSelect.value);
   }
 
+  url.searchParams.set("sortBy", sortBySelect.value || "updatedAt");
+  url.searchParams.set("sortDir", sortDirectionSelect.value || "desc");
+  url.searchParams.set("page", String(state.inventoryPagination.page || 1));
+  url.searchParams.set("pageSize", pageSizeSelect.value || "25");
+
   if (!options.silent) {
     tableSummary.textContent = "Yozuvlar bazadan yuklanmoqda...";
   }
@@ -731,7 +797,9 @@ async function loadInventory(options = {}) {
     });
 
     state.inventoryRecords = payload.records || [];
+    state.inventoryPagination = payload.pagination || state.inventoryPagination;
     renderInventory(payload.records || [], payload.stats || {});
+    renderPagination(payload.pagination || {}, payload.stats || {});
   } catch (error) {
     if (error.name !== "AbortError") {
       throw error;
@@ -741,6 +809,27 @@ async function loadInventory(options = {}) {
       state.inventoryRequestController = null;
     }
   }
+}
+
+function reloadInventoryFromFirstPage(options = {}) {
+  state.inventoryPagination.page = 1;
+  return loadInventory(options);
+}
+
+function renderPagination(pagination = {}, stats = {}) {
+  const page = Number(pagination.page || 1);
+  const totalPages = Number(pagination.totalPages || 1);
+  const pageSize = Number(pagination.pageSize || pageSizeSelect.value || 25);
+  const totalRecords = Number(stats.totalRecords || 0);
+  const start = totalRecords ? ((page - 1) * pageSize) + 1 : 0;
+  const end = Math.min(totalRecords, page * pageSize);
+
+  paginationSummary.textContent = totalRecords
+    ? `${start}-${end} / ${totalRecords} ta yozuv`
+    : "0 ta yozuv";
+  paginationIndicator.textContent = `${page} / ${Math.max(totalPages, 1)}`;
+  previousPageButton.disabled = page <= 1;
+  nextPageButton.disabled = page >= totalPages;
 }
 
 async function loadAuditLogs(options = {}) {
@@ -780,8 +869,20 @@ function applyPermissionUI() {
   catalogAccessNote.classList.toggle("hidden", canManageCatalogs);
   downloadTemplateButton.classList.toggle("hidden", !state.permissions.importInventory);
   importButton.classList.toggle("hidden", !state.permissions.importInventory);
+  previewImportButton.classList.toggle("hidden", !state.permissions.importInventory);
+  dashboardImportButton?.classList.toggle("hidden", !state.permissions.importInventory);
+  dashboardEmptyImportButton?.classList.toggle("hidden", !state.permissions.importInventory);
   exportExcelButton.classList.toggle("hidden", !state.permissions.exportInventory);
   exportCsvButton.classList.toggle("hidden", !state.permissions.exportInventory);
+  detailEditButton.classList.toggle("hidden", !canManageInventory);
+  detailTransferButton.classList.toggle("hidden", !canManageInventory);
+  detailRepairButton.classList.toggle("hidden", !canManageInventory);
+  detailRetireButton.classList.toggle("hidden", !canManageInventory);
+  transferForm.classList.add("hidden");
+  setFormEnabled(transferForm, canManageInventory);
+  setFormEnabled(serviceLogForm, Boolean(state.permissions.manageService));
+  attachmentPickButton.disabled = !state.permissions.manageAttachments;
+  attachmentUploadButton.disabled = !state.permissions.manageAttachments;
   quickCatalogPanel.classList.toggle("hidden", !canManageCatalogs);
   setFormEnabled(inventoryForm, canManageInventory);
   setFormEnabled(departmentForm, canManageCatalogs);
@@ -887,6 +988,22 @@ function renderReferenceOptions() {
     })),
     { keepValue: true, placeholder: "Barcha holatlar" }
   );
+  fillSelectOptions(
+    transferDepartmentSelect,
+    state.departments.map((item) => ({
+      label: formatDepartmentOption(item),
+      value: String(item.id),
+    })),
+    { keepValue: true }
+  );
+  fillSelectOptions(
+    transferStatusSelect,
+    state.assetStatuses.map((item) => ({
+      label: item.label,
+      value: item.value,
+    })),
+    { keepValue: true }
+  );
 
   if (!assetStatusSelect.value && state.assetStatuses[0]?.value) {
     assetStatusSelect.value = state.assetStatuses[0].value;
@@ -902,38 +1019,55 @@ function renderInventory(records, stats) {
 
   records.forEach((record) => {
     const row = document.createElement("tr");
-    appendCell(row, "Ism", record.firstName);
-    appendCell(row, "Familya", record.lastName);
-    appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
+    row.className = "is-clickable";
+    row.tabIndex = 0;
+    row.dataset.recordId = String(record.id);
+    row.classList.toggle("is-selected", state.selectedInventoryId === record.id);
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("button, a, input, select, textarea")) {
+        return;
+      }
+
+      loadInventoryDetail(record.id).catch(handleError);
+    });
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        loadInventoryDetail(record.id).catch(handleError);
+      }
+    });
+
+    appendStackCell(row, "Inventar raqam", [
+      record.assetTag || "Tag biriktirilmagan",
+      record.serialNumber ? `Serial: ${record.serialNumber}` : "",
+    ]);
     appendStackCell(row, "Texnika", [
       record.deviceName,
-      record.officeLocation || record.supplier || "",
+      record.supplier || record.purchaseDate ? [record.supplier, formatShortDate(record.purchaseDate)].filter(Boolean).join(" · ") : "",
     ]);
-    appendStackCell(row, "Aktiv", [
-      record.assetTag || "Tag biriktirilmagan",
-      record.serialNumber || "Serial raqam yo'q",
+    appendStackCell(row, "Egasi", [
+      record.currentHolder || "-",
+      [record.firstName, record.lastName].filter(Boolean).join(" "),
     ]);
+    appendCell(row, "Bo'lim", localizeDepartmentName(record.department));
     appendTagCell(row, "Holati", getAssetStatusLabel(record.assetStatus), getAssetStatusClass(record.assetStatus));
-    appendTagCell(row, "Holat", getConditionStatusLabel(record.conditionStatus), getConditionStatusClass(record.conditionStatus));
-    appendStackCell(row, "Xarid / Kafolat", [
-      record.purchaseDate ? `Xarid: ${formatShortDate(record.purchaseDate)}` : "Xarid sanasi yo'q",
+    appendStackCell(row, "Lokatsiya", [
+      record.officeLocation || [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || "-",
+      getConditionStatusLabel(record.conditionStatus),
+    ]);
+    appendStackCell(row, "Kafolat", [
       record.warrantyUntil ? `Kafolat: ${formatShortDate(record.warrantyUntil)}` : "Kafolat kiritilmagan",
+      getWarrantyHint(record.warrantyUntil),
     ]);
-    appendStackCell(row, "Qo'shimcha", [
-      record.accessories || "Qo'shimcha texnika yo'q",
-      record.notes || "",
-    ]);
-    appendCell(row, "Oldin kimda", record.previousHolder || "-");
-    appendCell(row, "Hozir kimda", record.currentHolder);
-    appendCell(row, "Yangilangan", formatDate(record.updatedAt));
 
     const actionsCell = document.createElement("td");
     actionsCell.dataset.label = "Amallar";
-    actionsCell.textContent = state.permissions.manageInventory ? "" : "Ko'rish";
+    actionsCell.textContent = "";
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.appendChild(createRowButton("Ko'rish", () => loadInventoryDetail(record.id).catch(handleError)));
 
     if (state.permissions.manageInventory) {
-      const actions = document.createElement("div");
-      actions.className = "row-actions";
       actions.appendChild(createRowButton("Tahrirlash", () => fillInventoryForm(record)));
       actions.appendChild(createRowButton("O'chirish", async () => {
         if (!window.confirm("Ushbu yozuvni o'chirmoqchimisiz?")) {
@@ -943,30 +1077,33 @@ function renderInventory(records, stats) {
         await request(`/api/inventory/${record.id}`, { method: "DELETE" });
         await loadInventory({ silent: true });
         showStatus("Yozuv o'chirildi.");
-      }));
-      actionsCell.appendChild(actions);
+      }, "row-action--danger"));
     }
 
+    actionsCell.appendChild(actions);
     row.appendChild(actionsCell);
     inventoryTableBody.appendChild(row);
   });
 
   emptyState.style.display = records.length ? "none" : "block";
-  emptyStateText.textContent = searchInput.value.trim() ? "Filter bo'yicha mos yozuv topilmadi." : "Hali birorta inventar yozuvi mavjud emas.";
+  emptyStateText.textContent = searchInput.value.trim()
+    ? "Filter bo'yicha mos yozuv topilmadi. Filtrni tozalang yoki boshqa so'z bilan qidiring."
+    : "Hozircha aktiv yo'q. Birinchi aktivni qo'shing yoki Excel orqali import qiling.";
   tableSummary.textContent = `${stats.totalRecords || 0} ta yozuv. ${stats.inUseCount || 0} ishlatilmoqda, ${stats.repairCount || 0} ta'mirda, ${stats.warrantyExpiringCount || 0} kafolat muddatiga yaqin.`;
 }
 
 function renderDashboard(overview) {
   const stats = overview?.stats || {};
+  const totalRecords = Number(stats.totalRecords || 0);
 
   renderHeroVisualization(stats, overview);
   renderOperationalScenarios(stats);
+  dashboardTotalCountElement.textContent = totalRecords;
   dashboardInUseCountElement.textContent = stats.inUseCount || 0;
-  dashboardInStockCountElement.textContent = stats.inStockCount || 0;
-  dashboardRepairCountElement.textContent = stats.repairCount || 0;
   dashboardWarrantyCountElement.textContent = stats.warrantyExpiringCount || 0;
-  dashboardAccessoryCountElement.textContent = stats.accessoryCount || 0;
-  dashboardPurchasedThisYearCountElement.textContent = stats.purchasedThisYearCount || 0;
+  dashboardAttentionCountElement.textContent = stats.attentionCount || 0;
+  document.querySelector("#tabDashboard")?.classList.toggle("is-empty", !totalRecords);
+  dashboardEmptyState?.classList.toggle("hidden", Boolean(totalRecords));
 
   renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel, getAssetStatusTone);
   renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel, getConditionStatusTone);
@@ -1587,6 +1724,420 @@ function renderDashboardTable(container, items, renderRow) {
   });
 }
 
+function openImportPreviewPicker() {
+  if (!state.permissions.importInventory) {
+    showStatus("Sizda import qilish huquqi yo'q.", "error");
+    return;
+  }
+
+  activateTab("inventory");
+  activateInventoryPanel("list");
+  previewImportFileInput.click();
+}
+
+async function previewSelectedImportFile() {
+  const file = previewImportFileInput.files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  state.importPreviewFile = file;
+  previewImportButton.disabled = true;
+  importButton.disabled = true;
+  importPreviewSummary.textContent = "Excel fayl tekshirilmoqda...";
+  importPreviewPanel.classList.remove("hidden");
+  importPreviewErrors.classList.add("hidden");
+  importPreviewTableBody.innerHTML = "";
+
+  try {
+    const response = await request("/api/inventory/import-preview", {
+      body: formData,
+      method: "POST",
+    });
+
+    renderImportPreview(response);
+  } catch (error) {
+    resetImportPreview({ keepPanel: true });
+    importPreviewErrors.textContent = error.message;
+    importPreviewErrors.classList.remove("hidden");
+  } finally {
+    previewImportButton.disabled = false;
+    importButton.disabled = false;
+  }
+}
+
+function renderImportPreview(response) {
+  const errors = response.errors || [];
+  const conflicts = response.conflicts || [];
+  const previewRows = response.previewRows || [];
+  const fileDuplicateConflicts = conflicts.filter((conflict) => conflict.type === "file_duplicate");
+
+  state.importPreviewHasBlockingConflicts = Boolean(errors.length || fileDuplicateConflicts.length);
+  importPreviewSummary.textContent = `${response.totalRows || 0} qator topildi. ${response.validRows || 0} qator importga tayyor. ${conflicts.length || 0} konflikt.`;
+  importPreviewErrors.classList.toggle("hidden", !errors.length && !conflicts.length);
+  importPreviewErrors.innerHTML = "";
+
+  [...errors, ...conflicts.map((conflict) => conflict.message || `${conflict.rowNumber}-qator: konflikt topildi.`)]
+    .slice(0, 8)
+    .forEach((message) => {
+      const item = document.createElement("div");
+      item.textContent = message;
+      importPreviewErrors.appendChild(item);
+    });
+
+  importPreviewTableBody.innerHTML = "";
+  previewRows.forEach((row) => {
+    const tableRow = document.createElement("tr");
+    appendStackCell(tableRow, "Egasi", [
+      row.currentHolder,
+      [row.firstName, row.lastName].filter(Boolean).join(" "),
+    ]);
+    appendCell(tableRow, "Bo'lim", localizeDepartmentName(row.department));
+    appendCell(tableRow, "Texnika", row.deviceName);
+    appendStackCell(tableRow, "Aktiv", [
+      row.assetTag,
+      row.serialNumber ? `Serial: ${row.serialNumber}` : "",
+    ]);
+    importPreviewTableBody.appendChild(tableRow);
+  });
+
+  renderImportConfirmState();
+}
+
+function renderImportConfirmState() {
+  const requiresStrategy = !state.importPreviewHasBlockingConflicts && !importPreviewErrors.classList.contains("hidden");
+  confirmImportButton.disabled = state.importPreviewHasBlockingConflicts || (requiresStrategy && !importConflictStrategySelect.value);
+}
+
+async function confirmPreviewImport() {
+  if (!state.importPreviewFile) {
+    showStatus("Import uchun fayl tanlanmagan.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", state.importPreviewFile);
+
+  if (importConflictStrategySelect.value) {
+    formData.append("conflictStrategy", importConflictStrategySelect.value);
+  }
+
+  confirmImportButton.disabled = true;
+
+  try {
+    const response = await request("/api/inventory/import", {
+      body: formData,
+      method: "POST",
+    });
+    const result = response.result || {};
+
+    resetImportPreview();
+    await refreshDashboardData();
+    await reloadInventoryFromFirstPage({ silent: true });
+    showStatus(`${result.insertedCount || 0} ta qo'shildi, ${result.updatedCount || 0} ta yangilandi, ${result.skippedCount || 0} ta o'tkazib yuborildi.`);
+  } catch (error) {
+    showStatus(error.message, "error");
+    confirmImportButton.disabled = false;
+  }
+}
+
+function resetImportPreview(options = {}) {
+  state.importPreviewFile = null;
+  state.importPreviewHasBlockingConflicts = false;
+  previewImportFileInput.value = "";
+  importConflictStrategySelect.value = "";
+  importPreviewSummary.textContent = "Fayl tanlangach qatorlar shu yerda ko'rinadi.";
+  importPreviewErrors.textContent = "";
+  importPreviewErrors.classList.add("hidden");
+  importPreviewTableBody.innerHTML = "";
+  confirmImportButton.disabled = false;
+
+  if (!options.keepPanel) {
+    importPreviewPanel.classList.add("hidden");
+  }
+}
+
+async function loadInventoryDetail(recordId) {
+  const detail = await request(`/api/inventory/${recordId}/detail`);
+  state.selectedInventoryId = recordId;
+  state.selectedInventoryDetail = detail;
+  renderInventoryDetail(detail);
+  syncSelectedInventoryRow();
+  inventoryDetailPanel.classList.remove("hidden");
+  inventoryDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function syncSelectedInventoryRow() {
+  inventoryTableBody.querySelectorAll("tr[data-record-id]").forEach((row) => {
+    row.classList.toggle("is-selected", Number(row.dataset.recordId) === state.selectedInventoryId);
+  });
+}
+
+function renderInventoryDetail(detail) {
+  const record = detail.record;
+  detailTitle.textContent = `${record.assetTag || "Inventar raqamsiz"} · ${record.deviceName}`;
+  detailSubtitle.textContent = `${record.currentHolder || "Egasi ko'rsatilmagan"} · ${localizeDepartmentName(record.department)} · ${getAssetStatusLabel(record.assetStatus)}`;
+  detailQrImage.src = detail.qrUrl;
+  detailQrLink.href = detail.qrUrl;
+
+  renderDetailList(detailMetaList, [
+    ["Inventar raqam", record.assetTag || "-"],
+    ["Serial raqam", record.serialNumber || "-"],
+    ["Texnika", record.deviceName],
+    ["Egasi", record.currentHolder || "-"],
+    ["Bo'lim", localizeDepartmentName(record.department)],
+    ["Joylashuv", record.officeLocation || [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || "-"],
+    ["Status", getAssetStatusLabel(record.assetStatus)],
+    ["Texnik ahvoli", getConditionStatusLabel(record.conditionStatus)],
+    ["Xarid sanasi", formatShortDate(record.purchaseDate)],
+    ["Kafolat", `${formatShortDate(record.warrantyUntil)} ${getWarrantyHint(record.warrantyUntil)}`.trim()],
+    ["Qo'shimcha", record.accessories || "-"],
+    ["Izoh", record.notes || "-"],
+  ]);
+
+  renderTransfers(detail.transfers || []);
+  renderServiceLogs(detail.serviceLogs || []);
+  renderAttachments(detail.attachments || []);
+  transferForm.classList.add("hidden");
+}
+
+function renderDetailList(container, rows) {
+  container.innerHTML = "";
+
+  rows.forEach(([label, value]) => {
+    const row = document.createElement("div");
+    row.className = "detail-list__row";
+
+    const labelElement = document.createElement("span");
+    labelElement.className = "detail-list__label";
+    labelElement.textContent = label;
+
+    const valueElement = document.createElement("strong");
+    valueElement.className = "detail-list__value";
+    valueElement.textContent = value || "-";
+
+    row.append(labelElement, valueElement);
+    container.appendChild(row);
+  });
+}
+
+function renderTransfers(transfers) {
+  transferTimeline.innerHTML = "";
+
+  if (!transfers.length) {
+    const empty = document.createElement("div");
+    empty.className = "detail-list__row detail-list__row--empty";
+    empty.textContent = "Bu aktiv bo'yicha transfer tarixi hali yo'q.";
+    transferTimeline.appendChild(empty);
+    return;
+  }
+
+  transfers.forEach((transfer) => {
+    const row = document.createElement("div");
+    row.className = "detail-list__row detail-list__row--stack";
+    const stack = document.createElement("div");
+    stack.className = "detail-list__stack";
+    stack.innerHTML = "";
+
+    const title = document.createElement("strong");
+    title.className = "detail-list__value";
+    title.textContent = `${transfer.fromHolder || "-"} -> ${transfer.toHolder || "-"}`;
+
+    const meta = document.createElement("span");
+    meta.className = "detail-list__subvalue";
+    meta.textContent = `${formatShortDate(transfer.transferDate)} · ${localizeDepartmentName(transfer.fromDepartment)} -> ${localizeDepartmentName(transfer.toDepartment)} · ${getAssetStatusLabel(transfer.toStatus)}`;
+
+    const notes = document.createElement("span");
+    notes.className = "detail-list__subvalue";
+    notes.textContent = transfer.notes || "Izoh kiritilmagan";
+
+    stack.append(title, meta, notes);
+    row.appendChild(stack);
+    transferTimeline.appendChild(row);
+  });
+}
+
+function renderServiceLogs(serviceLogs) {
+  serviceLogList.innerHTML = "";
+
+  if (!serviceLogs.length) {
+    const empty = document.createElement("div");
+    empty.className = "detail-list__row detail-list__row--empty";
+    empty.textContent = "Servis yozuvlari hali mavjud emas.";
+    serviceLogList.appendChild(empty);
+    return;
+  }
+
+  serviceLogs.forEach((log) => {
+    const row = document.createElement("div");
+    row.className = "detail-list__row detail-list__row--stack";
+    const stack = document.createElement("div");
+    stack.className = "detail-list__stack";
+
+    const title = document.createElement("strong");
+    title.className = "detail-list__value";
+    title.textContent = `${formatShortDate(log.serviceDate)} · ${log.serviceType}`;
+
+    const meta = document.createElement("span");
+    meta.className = "detail-list__subvalue";
+    meta.textContent = [log.vendor, log.cost ? `${log.cost} USD` : ""].filter(Boolean).join(" · ") || "Servis tafsiloti";
+
+    const notes = document.createElement("span");
+    notes.className = "detail-list__subvalue";
+    notes.textContent = log.notes || "Izoh yo'q";
+
+    stack.append(title, meta, notes);
+    row.appendChild(stack);
+    serviceLogList.appendChild(row);
+  });
+}
+
+function renderAttachments(attachments) {
+  attachmentList.innerHTML = "";
+
+  if (!attachments.length) {
+    const empty = document.createElement("div");
+    empty.className = "detail-list__row detail-list__row--empty";
+    empty.textContent = "Fayllar hali yuklanmagan.";
+    attachmentList.appendChild(empty);
+    return;
+  }
+
+  attachments.forEach((attachment) => {
+    const row = document.createElement("div");
+    row.className = "detail-list__row detail-list__row--actions";
+
+    const stack = document.createElement("div");
+    stack.className = "detail-list__stack";
+    const title = document.createElement("strong");
+    title.className = "detail-list__value";
+    title.textContent = attachment.fileName;
+    const meta = document.createElement("span");
+    meta.className = "detail-list__subvalue";
+    meta.textContent = `${Math.ceil((attachment.fileSize || 0) / 1024)} KB · ${formatDate(attachment.createdAt)}`;
+    stack.append(title, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const download = document.createElement("a");
+    download.className = "row-action";
+    download.href = `/api/inventory/${state.selectedInventoryId}/attachments/${attachment.id}/download`;
+    download.textContent = "Yuklab olish";
+    actions.appendChild(download);
+
+    row.append(stack, actions);
+    attachmentList.appendChild(row);
+  });
+}
+
+function openTransferPanel(statusOverride = "") {
+  const record = state.selectedInventoryDetail?.record;
+
+  if (!record) {
+    showStatus("Avval aktivni tanlang.", "error");
+    return;
+  }
+
+  transferHolderInput.value = record.currentHolder || "";
+  transferDepartmentSelect.value = String(record.departmentId || "");
+  transferStatusSelect.value = statusOverride || record.assetStatus || state.assetStatuses[0]?.value || "";
+  transferDateInput.value = new Date().toISOString().slice(0, 10);
+  transferNotesInput.value = statusOverride === "repair"
+    ? "Servisga yuborildi."
+    : statusOverride === "retired"
+      ? "Hisobdan chiqarildi."
+      : "";
+  transferForm.classList.remove("hidden");
+  transferHolderInput.focus();
+}
+
+function quickTransferStatus(status) {
+  openTransferPanel(status);
+}
+
+async function submitTransfer() {
+  if (!state.selectedInventoryId) {
+    showStatus("Transfer uchun aktiv tanlanmagan.", "error");
+    return;
+  }
+
+  transferSubmitButton.disabled = true;
+
+  try {
+    await request(`/api/inventory/${state.selectedInventoryId}/transfer`, {
+      body: {
+        assetStatus: transferStatusSelect.value,
+        departmentId: transferDepartmentSelect.value,
+        notes: transferNotesInput.value.trim(),
+        toHolder: transferHolderInput.value.trim(),
+        transferDate: transferDateInput.value,
+      },
+      method: "POST",
+    });
+
+    await refreshDashboardData();
+    await loadInventory({ silent: true });
+    await loadInventoryDetail(state.selectedInventoryId);
+    showStatus("Aktiv transferi audit bilan saqlandi.");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    transferSubmitButton.disabled = false;
+  }
+}
+
+async function submitServiceLog() {
+  if (!state.selectedInventoryId) {
+    showStatus("Avval aktivni tanlang.", "error");
+    return;
+  }
+
+  const payload = {
+    cost: serviceCostInput.value,
+    notes: serviceNotesInput.value.trim(),
+    serviceDate: serviceDateInput.value,
+    serviceType: serviceTypeInput.value.trim(),
+    vendor: serviceVendorInput.value.trim(),
+  };
+
+  await request(`/api/inventory/${state.selectedInventoryId}/service-logs`, {
+    body: payload,
+    method: "POST",
+  });
+
+  serviceLogForm.reset();
+  await loadInventoryDetail(state.selectedInventoryId);
+  showStatus("Servis tarixi yangilandi.");
+}
+
+async function uploadAttachment() {
+  const file = attachmentFileInput.files?.[0];
+
+  if (!state.selectedInventoryId || !file) {
+    showStatus("Avval aktiv va faylni tanlang.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  attachmentUploadButton.disabled = true;
+
+  try {
+    await request(`/api/inventory/${state.selectedInventoryId}/attachments`, {
+      body: formData,
+      method: "POST",
+    });
+    attachmentFileInput.value = "";
+    await loadInventoryDetail(state.selectedInventoryId);
+    showStatus("Fayl aktiv kartasiga qo'shildi.");
+  } finally {
+    attachmentUploadButton.disabled = false;
+  }
+}
+
 function renderDepartments() {
   departmentsTableBody.innerHTML = "";
   getFilteredDepartments().forEach((department) => {
@@ -1912,17 +2463,72 @@ function validateInventoryWizardStep(stepIndex) {
     return true;
   }
 
+  clearInlineErrors(step.fields);
+
   for (const field of step.fields) {
     if (!field || field.disabled) {
       continue;
     }
 
-    if (typeof field.reportValidity === "function" && !field.reportValidity()) {
+    if (typeof field.checkValidity === "function" && !field.checkValidity()) {
+      setInlineError(field, field.validationMessage || "Bu maydonni tekshiring.");
+      field.reportValidity?.();
+      return false;
+    }
+  }
+
+  if (step.fields.includes(assetTagInput)) {
+    const duplicate = findLocalAssetTagDuplicate(assetTagInput.value.trim());
+
+    if (duplicate) {
+      setInlineError(assetTagInput, `"${duplicate.assetTag}" aktiv tegi ro'yxatda mavjud.`);
+      assetTagInput.focus();
       return false;
     }
   }
 
   return true;
+}
+
+function clearInlineErrors(fields = []) {
+  fields.forEach((field) => {
+    const wrapper = field?.closest?.(".field");
+
+    if (!wrapper) {
+      return;
+    }
+
+    wrapper.classList.remove("is-invalid");
+    wrapper.querySelector(".field-error")?.remove();
+  });
+}
+
+function setInlineError(field, message) {
+  const wrapper = field.closest(".field");
+
+  if (!wrapper) {
+    return;
+  }
+
+  wrapper.classList.add("is-invalid");
+  wrapper.querySelector(".field-error")?.remove();
+  const error = document.createElement("p");
+  error.className = "field-error";
+  error.textContent = message;
+  wrapper.appendChild(error);
+}
+
+function findLocalAssetTagDuplicate(assetTag) {
+  const normalized = assetTag.toLowerCase();
+  const currentRecordId = parsePositiveInteger(recordIdInput.value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return state.inventoryRecords.find((record) => {
+    return record.assetTag?.toLowerCase() === normalized && record.id !== currentRecordId;
+  }) || null;
 }
 
 function prepareInventoryWizardForSubmit() {
@@ -2251,9 +2857,12 @@ function getInventoryPayload() {
     officeLocation: officeLocationInput.value.trim(),
     previousHolder: previousHolderInput.value.trim(),
     purchaseDate: purchaseDateInput.value,
+    purchasePrice: purchasePriceInput.value,
+    room: roomInput.value.trim(),
     serialNumber: serialNumberInput.value.trim(),
     supplier: supplierInput.value.trim(),
     warrantyUntil: warrantyUntilInput.value,
+    desk: deskInput.value.trim(),
   };
 }
 
@@ -2312,6 +2921,11 @@ function getRoleLabel(role) {
 
 function normalizeSearchValue(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function parsePositiveInteger(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function formatDepartmentOption(department) {
@@ -2414,6 +3028,7 @@ function formatAuditActionLabel(value) {
     "inventory.create": "Inventar yozuvi yaratildi",
     "inventory.update": "Inventar yozuvi yangilandi",
     "inventory.delete": "Inventar yozuvi o'chirildi",
+    "inventory.transfer": "Aktiv transfer qilindi",
     "inventory.service_log_create": "Servis yozuvi qo'shildi",
     "inventory.attachment_create": "Fayl qo'shildi",
     "inventory.import": "Inventar import qilindi",
@@ -2625,6 +3240,32 @@ function formatShortDate(value) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getWarrantyHint(value) {
+  if (!value) {
+    return "";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  const diffDays = Math.ceil((date - today) / 86400000);
+
+  if (!Number.isFinite(diffDays)) {
+    return "";
+  }
+
+  if (diffDays < 0) {
+    return "Muddati o'tgan";
+  }
+
+  if (diffDays <= 30) {
+    return `${diffDays} kun qoldi`;
+  }
+
+  return "";
 }
 
 function getAssetStatusLabel(value) {

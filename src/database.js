@@ -357,6 +357,94 @@ function createDatabase(config) {
           .get(recordId)
       );
     },
+    getInventoryByAssetTag(assetTag) {
+      const normalizedAssetTag = normalizeText(assetTag);
+
+      if (!normalizedAssetTag) {
+        return null;
+      }
+
+      return mapInventoryRecord(
+        database
+          .prepare(`
+            SELECT
+              id,
+              first_name AS firstName,
+              last_name AS lastName,
+              department,
+              department_id AS departmentId,
+              device_name AS deviceName,
+              device_id AS deviceId,
+              asset_tag AS assetTag,
+              serial_number AS serialNumber,
+              asset_status AS assetStatus,
+              condition_status AS conditionStatus,
+              purchase_date AS purchaseDate,
+              purchase_price AS purchasePrice,
+              assigned_at AS assignedAt,
+              warranty_until AS warrantyUntil,
+              supplier,
+              branch,
+              room,
+              desk,
+              office_location AS officeLocation,
+              accessories,
+              notes,
+              previous_holder AS previousHolder,
+              current_holder AS currentHolder,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM inventory_records
+            WHERE lower(asset_tag) = lower(?)
+            LIMIT 1
+          `)
+          .get(normalizedAssetTag)
+      );
+    },
+    getInventoryBySerialNumber(serialNumber) {
+      const normalizedSerialNumber = normalizeText(serialNumber);
+
+      if (!normalizedSerialNumber) {
+        return null;
+      }
+
+      return mapInventoryRecord(
+        database
+          .prepare(`
+            SELECT
+              id,
+              first_name AS firstName,
+              last_name AS lastName,
+              department,
+              department_id AS departmentId,
+              device_name AS deviceName,
+              device_id AS deviceId,
+              asset_tag AS assetTag,
+              serial_number AS serialNumber,
+              asset_status AS assetStatus,
+              condition_status AS conditionStatus,
+              purchase_date AS purchaseDate,
+              purchase_price AS purchasePrice,
+              assigned_at AS assignedAt,
+              warranty_until AS warrantyUntil,
+              supplier,
+              branch,
+              room,
+              desk,
+              office_location AS officeLocation,
+              accessories,
+              notes,
+              previous_holder AS previousHolder,
+              current_holder AS currentHolder,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM inventory_records
+            WHERE lower(serial_number) = lower(?)
+            LIMIT 1
+          `)
+          .get(normalizedSerialNumber)
+      );
+    },
     getInventoryStats(filters) {
       return database
         .prepare(`
@@ -549,15 +637,31 @@ function createDatabase(config) {
           .get(username)
       );
     },
-    importInventoryRows(rows, userId) {
+    importInventoryRows(rows, userId, options = {}) {
+      const conflictStrategy = ["skip", "update"].includes(options.conflictStrategy)
+        ? options.conflictStrategy
+        : "reject";
       const createdDepartments = [];
       const createdDevices = [];
       let insertedCount = 0;
+      let skippedCount = 0;
+      let updatedCount = 0;
 
       database.exec("BEGIN IMMEDIATE");
 
       try {
         rows.forEach((row) => {
+          const existingRecord = findExistingInventoryForImport(database, row);
+
+          if (existingRecord && conflictStrategy === "skip") {
+            skippedCount += 1;
+            return;
+          }
+
+          if (existingRecord && conflictStrategy === "reject") {
+            throw new Error(`Konflikt: ${row.assetTag || row.serialNumber} aktiv yozuvi allaqachon mavjud.`);
+          }
+
           const departmentRef = ensureDepartmentByName(database, row.department);
           const deviceRef = ensureDeviceByName(database, row.deviceName);
 
@@ -570,6 +674,101 @@ function createDatabase(config) {
           }
 
           const now = getNow();
+
+          if (existingRecord && conflictStrategy === "update") {
+            database
+              .prepare(`
+                UPDATE inventory_records
+                SET
+                  first_name = ?,
+                  last_name = ?,
+                  department = ?,
+                  department_id = ?,
+                  device_name = ?,
+                  device_id = ?,
+                  asset_tag = ?,
+                  serial_number = ?,
+                  asset_status = ?,
+                  condition_status = ?,
+                  purchase_date = ?,
+                  purchase_price = ?,
+                  assigned_at = ?,
+                  warranty_until = ?,
+                  supplier = ?,
+                  branch = ?,
+                  room = ?,
+                  desk = ?,
+                  office_location = ?,
+                  accessories = ?,
+                  notes = ?,
+                  previous_holder = ?,
+                  current_holder = ?,
+                  updated_by = ?,
+                  updated_at = ?
+                WHERE id = ?
+              `)
+              .run(
+                row.firstName,
+                row.lastName,
+                departmentRef.record.name,
+                departmentRef.record.id,
+                deviceRef.record.name,
+                deviceRef.record.id,
+                row.assetTag,
+                row.serialNumber,
+                row.assetStatus || DEFAULT_ASSET_STATUS,
+                row.conditionStatus || DEFAULT_CONDITION_STATUS,
+                row.purchaseDate,
+                row.purchasePrice,
+                row.assignedAt,
+                row.warrantyUntil,
+                row.supplier,
+                row.branch,
+                row.room,
+                row.desk,
+                row.officeLocation,
+                row.accessories,
+                row.notes,
+                existingRecord.current_holder || "-",
+                row.currentHolder,
+                userId,
+                now,
+                existingRecord.id
+              );
+
+            database
+              .prepare(`
+                INSERT INTO inventory_transfers (
+                  inventory_record_id,
+                  from_holder,
+                  to_holder,
+                  from_department,
+                  to_department,
+                  from_status,
+                  to_status,
+                  transfer_date,
+                  notes,
+                  created_by,
+                  created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `)
+              .run(
+                existingRecord.id,
+                existingRecord.current_holder || "",
+                row.currentHolder || "",
+                existingRecord.department || "",
+                departmentRef.record.name,
+                existingRecord.asset_status || "",
+                row.assetStatus || DEFAULT_ASSET_STATUS,
+                row.assignedAt || now.slice(0, 10),
+                "Excel import orqali mavjud yozuv yangilandi.",
+                userId,
+                now
+              );
+
+            updatedCount += 1;
+            return;
+          }
 
           database
             .prepare(`
@@ -646,6 +845,8 @@ function createDatabase(config) {
         createdDepartments: unique(createdDepartments),
         createdDevices: unique(createdDevices),
         insertedCount,
+        skippedCount,
+        updatedCount,
       };
     },
     listAuditLogs(filters = {}) {
@@ -1577,6 +1778,57 @@ function createDatabase(config) {
 
       return this.getInventoryById(recordId);
     },
+    transferInventory(recordId, payload, userId) {
+      const existingRecord = this.getInventoryById(recordId);
+      const department = this.getDepartmentById(payload.departmentId);
+
+      if (!existingRecord || !department) {
+        return null;
+      }
+
+      const now = getNow();
+      database
+        .prepare(`
+          UPDATE inventory_records
+          SET
+            previous_holder = ?,
+            current_holder = ?,
+            department = ?,
+            department_id = ?,
+            asset_status = ?,
+            assigned_at = ?,
+            updated_by = ?,
+            updated_at = ?
+          WHERE id = ?
+        `)
+        .run(
+          existingRecord.currentHolder || "-",
+          payload.toHolder,
+          department.name,
+          department.id,
+          payload.assetStatus,
+          payload.transferDate || now.slice(0, 10),
+          userId,
+          now,
+          recordId
+        );
+
+      const transfer = this.createTransfer(recordId, {
+        fromDepartment: existingRecord.department,
+        fromHolder: existingRecord.currentHolder,
+        fromStatus: existingRecord.assetStatus,
+        notes: payload.notes,
+        toDepartment: department.name,
+        toHolder: payload.toHolder,
+        toStatus: payload.assetStatus,
+        transferDate: payload.transferDate || now.slice(0, 10),
+      }, userId);
+
+      return {
+        record: this.getInventoryById(recordId),
+        transfer,
+      };
+    },
     updateUser(userId, payload) {
       const now = getNow();
 
@@ -2199,6 +2451,43 @@ function insertDeviceIfMissing(database, name) {
       now,
       now
     );
+}
+
+function findExistingInventoryForImport(database, row) {
+  const assetTag = normalizeText(row.assetTag);
+  const serialNumber = normalizeText(row.serialNumber);
+
+  if (assetTag) {
+    return database
+      .prepare(`
+        SELECT
+          id,
+          department,
+          asset_status,
+          current_holder
+        FROM inventory_records
+        WHERE lower(asset_tag) = lower(?)
+        LIMIT 1
+      `)
+      .get(assetTag);
+  }
+
+  if (serialNumber) {
+    return database
+      .prepare(`
+        SELECT
+          id,
+          department,
+          asset_status,
+          current_holder
+        FROM inventory_records
+        WHERE lower(serial_number) = lower(?)
+        LIMIT 1
+      `)
+      .get(serialNumber);
+  }
+
+  return null;
 }
 
 function buildInventoryWhereClause() {
