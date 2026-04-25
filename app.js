@@ -1230,7 +1230,8 @@ function renderHeroVisualization(stats, overview) {
   heroStatusChartElement.classList.toggle("is-empty", !statusItems.length);
   heroStatusChartElement.style.setProperty("--chart-fill", buildHeroStatusGradient(statusItems, totalRecords));
   heroStatusChartElement.setAttribute("aria-label", getHeroChartAriaLabel(statusItems, totalRecords));
-  heroChartSummaryElement.textContent = buildHeroChartSummary(statusItems, totalRecords);
+  heroChartSummaryElement.textContent = "";
+  heroChartSummaryElement.classList.add("hidden");
   heroStatusCountPillElement.textContent = `${statusItems.length || 0} ta holat`;
   heroLeadingStatusPillElement.textContent = leadingStatus
     ? `${leadingStatus.label} yetakchi`
@@ -1387,21 +1388,6 @@ function getHeroChartAriaLabel(items, totalRecords) {
   return `Aktivlar holati diagrammasi: ${items
     .map((item) => `${item.label} ${item.total} ta, ${formatPercent(item.total, totalRecords)}`)
     .join("; ")}.`;
-}
-
-function buildHeroChartSummary(items, totalRecords) {
-  if (!items.length || !totalRecords) {
-    return "Birinchi inventar yozuvi qo'shilgach holatlar ulushi shu yerda paydo bo'ladi.";
-  }
-
-  const leader = items[0];
-  const follower = items[1];
-
-  if (!follower) {
-    return `${leader.label} ${leader.total} ta yozuv bilan asosiy holat bo'lib turibdi.`;
-  }
-
-  return `${leader.label} ${leader.total} ta (${formatPercent(leader.total, totalRecords)}) bilan yetakchi, undan keyin ${follower.label} ${follower.total} ta.`;
 }
 
 function renderHeroStatusLegend(items, totalRecords) {
