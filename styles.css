@@ -171,9 +171,10 @@ a {
 }
 
 .page-shell {
-  width: min(1220px, calc(100% - 48px));
-  min-height: calc(100vh - 48px);
-  padding: 28px 36px 48px;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding: clamp(16px, 2.2vw, 28px);
   background: #ffffff;
 }
 
@@ -184,7 +185,7 @@ body[data-theme="dark"] .page-shell {
 .app-layout {
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
-  gap: 18px;
+  gap: clamp(16px, 1.8vw, 24px);
   align-items: start;
 }
 
