@@ -256,7 +256,6 @@ loginForm.addEventListener("submit", async (event) => {
     await refreshDashboardData();
     await loadInventory();
     loginForm.reset();
-    showStatus("Tizimga muvaffaqiyatli kirildi.");
   } catch (error) {
     showAuthFeedback(error.message);
   } finally {
