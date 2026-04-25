@@ -124,6 +124,11 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(inventory.payload.records.length, 1);
   assert.equal(inventory.payload.records[0].serialNumber, "SN-5520-001");
 
+  const globalSearch = await admin.request("/api/global-search?query=Latitude");
+  assert.equal(globalSearch.response.status, 200);
+  assert.ok(globalSearch.payload.results.inventory.some((item) => item.assetTag === "NB-5520-01"));
+  assert.ok(globalSearch.payload.results.devices.some((item) => item.name === "Dell Latitude 5520"));
+
   const refreshedDashboard = await admin.request("/api/dashboard");
   assert.equal(refreshedDashboard.payload.overview.stats.inUseCount, 1);
   assert.equal(refreshedDashboard.payload.overview.stats.purchasedThisYearCount, 1);

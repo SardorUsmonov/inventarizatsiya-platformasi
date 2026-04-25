@@ -1088,7 +1088,6 @@ function createDatabase(config) {
     searchGlobal(queryText) {
       const search = normalizeSearch(queryText);
       const params = {
-        search,
         searchPattern: search ? `%${escapeLike(search)}%` : "%",
       };
 
