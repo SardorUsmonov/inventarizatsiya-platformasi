@@ -34,6 +34,25 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+  const consoleIssues = [];
+
+  page.on("console", (message) => {
+    const text = message.text();
+
+    if (isUnexpectedConsoleIssue(message.type(), text)) {
+      consoleIssues.push({
+        text,
+        type: message.type(),
+      });
+    }
+  });
+  page.on("pageerror", (error) => {
+    consoleIssues.push({
+      text: error.message,
+      type: "pageerror",
+    });
+  });
+
   await page.goto(baseUrl, { waitUntil: "networkidle2" });
 
   await page.waitForSelector("#authScreen:not(.hidden)", { timeout: 15000 });
@@ -139,6 +158,12 @@ try {
     fail(`Light mode to'liq qaytmadi: ${JSON.stringify(afterLightReturn)}`);
   }
 
+  const assetCreateResult = await runInventoryCreateSmoke(page);
+
+  if (consoleIssues.length) {
+    fail(`Brauzer console'da kutilmagan xatolar bor: ${JSON.stringify(consoleIssues.slice(0, 8))}`);
+  }
+
   await page.click("#logoutButton");
   await page.waitForSelector("#logoutDialog[open]", { timeout: 10000 });
   await page.click("#logoutDialogCancelButton");
@@ -162,9 +187,11 @@ try {
           "dark-mode-toggle",
           "dark-mode-persisted",
           "light-mode-toggle-back",
+          "inventory-create-delete",
           "logout-confirm-cancel",
           "logout-confirm-accept",
         ],
+        inventorySmoke: assetCreateResult,
         outputDir,
         status: "ok",
       },
@@ -174,6 +201,115 @@ try {
   );
 } finally {
   await browser.close();
+}
+
+async function runInventoryCreateSmoke(page) {
+  await page.click('[data-tab-target="inventory"]');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-tab-target="inventory"]')?.classList.contains("is-active") &&
+      !document.querySelector("#tabInventory")?.classList.contains("hidden"),
+    { timeout: 10000 }
+  );
+  await page.click('[data-inventory-panel-target="create"]');
+  await page.waitForSelector("#inventoryPanelCreate:not(.hidden)", { timeout: 10000 });
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#departmentId")?.options.length > 1 &&
+      document.querySelector("#deviceId")?.options.length > 1 &&
+      document.querySelector("#assetStatus")?.options.length > 0 &&
+      document.querySelector("#conditionStatus")?.options.length > 0,
+    { timeout: 15000 }
+  );
+
+  const tag = `SMOKE-${Date.now()}`;
+  await clearAndType(page, "#firstName", "Smoke");
+  await clearAndType(page, "#lastName", "Asset");
+  await selectFirstRealOption(page, "#departmentId");
+  await clearAndType(page, "#currentHolder", "Smoke Asset");
+  await clearAndType(page, "#previousHolder", "-");
+  await page.click("#inventoryWizardNextButton");
+  await page.waitForFunction(
+    () => document.querySelector('[data-wizard-panel="1"]')?.classList.contains("is-active"),
+    { timeout: 10000 }
+  );
+  await selectFirstRealOption(page, "#deviceId");
+  await clearAndType(page, "#assetTag", tag);
+  await clearAndType(page, "#serialNumber", `SN-${tag}`);
+  await page.click("#inventoryWizardNextButton");
+  await page.waitForFunction(
+    () => document.querySelector('[data-wizard-panel="2"]')?.classList.contains("is-active"),
+    { timeout: 10000 }
+  );
+  await page.click("#inventoryWizardNextButton");
+  await page.waitForFunction(
+    () => document.querySelector('[data-wizard-panel="3"]')?.classList.contains("is-active"),
+    { timeout: 10000 }
+  );
+
+  const createResponse = await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().endsWith("/api/inventory") && response.request().method() === "POST",
+      { timeout: 20000 }
+    ),
+    page.click("#submitButton"),
+  ]).then(([response]) => response);
+
+  if (createResponse.status() !== 201) {
+    fail(`Inventar UI orqali saqlanmadi: ${createResponse.status()}`);
+  }
+
+  const cleanup = await page.evaluate(async (assetTag) => {
+    const listResponse = await fetch(`/api/inventory?search=${encodeURIComponent(assetTag)}&pageSize=25`);
+    const payload = await listResponse.json();
+    const record = payload.records?.find((item) => item.assetTag === assetTag);
+
+    if (!record) {
+      return {
+        found: false,
+      };
+    }
+
+    const deleteResponse = await fetch(`/api/inventory/${record.id}`, {
+      method: "DELETE",
+    });
+
+    return {
+      deleteStatus: deleteResponse.status,
+      found: true,
+      id: record.id,
+    };
+  }, tag);
+
+  if (!cleanup.found || cleanup.deleteStatus !== 204) {
+    fail(`Smoke inventar yozuvini tozalab bo'lmadi: ${JSON.stringify(cleanup)}`);
+  }
+
+  return {
+    createStatus: createResponse.status(),
+    deleteStatus: cleanup.deleteStatus,
+  };
+}
+
+async function clearAndType(page, selector, value) {
+  await page.$eval(selector, (element) => {
+    element.value = "";
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.type(selector, value);
+}
+
+async function selectFirstRealOption(page, selector) {
+  const optionValue = await page.$eval(selector, (element) => {
+    const option = Array.from(element.options).find((item) => item.value);
+    return option?.value || "";
+  });
+
+  if (!optionValue) {
+    fail(`${selector} uchun tanlanadigan option topilmadi.`);
+  }
+
+  await page.select(selector, optionValue);
 }
 
 function resolveBrowserPath(explicitPath) {
@@ -204,6 +340,29 @@ function resolveViewport() {
     isMobile,
     hasTouch,
   };
+}
+
+function isUnexpectedConsoleIssue(type, text) {
+  if (type === "pageerror") {
+    return true;
+  }
+
+  if (!["error", "warning"].includes(type)) {
+    return false;
+  }
+
+  const normalizedText = String(text || "");
+
+  if (/Failed to load resource: the server responded with a status of 401/i.test(normalizedText)) {
+    return false;
+  }
+
+  if (/Input elements should have autocomplete attributes|Password forms should have/i.test(normalizedText)) {
+    return false;
+  }
+
+  return /Pattern attribute|Invalid regular expression|Uncaught|TypeError|ReferenceError|SyntaxError|Failed to load resource/i
+    .test(normalizedText);
 }
 
 async function assertNoHorizontalOverflow(page, contextLabel) {
