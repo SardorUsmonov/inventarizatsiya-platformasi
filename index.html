@@ -677,7 +677,14 @@
 
                       <label class="field">
                         <span>Hozir kimda</span>
-                        <input id="currentHolder" type="text" placeholder="Masalan: Ali Karimov" required>
+                        <div class="holder-picker">
+                          <input id="currentHolder" type="text" list="holderSuggestions" placeholder="Odam yoki bo'limni tanlang" required>
+                          <div class="holder-picker__actions" aria-label="Egani tez belgilash">
+                            <button class="ghost-button" id="usePersonHolderButton" type="button">Xodimni belgilash</button>
+                            <button class="ghost-button" id="useDepartmentHolderButton" type="button">Bo'limni belgilash</button>
+                          </div>
+                        </div>
+                        <datalist id="holderSuggestions"></datalist>
                       </label>
 
                       <label class="field field--full">

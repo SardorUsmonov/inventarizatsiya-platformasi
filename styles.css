@@ -2049,6 +2049,24 @@ body[data-theme="dark"] .hero-visual {
   color: #94a3b8;
 }
 
+.holder-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.holder-picker__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.holder-picker__actions .ghost-button {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus,

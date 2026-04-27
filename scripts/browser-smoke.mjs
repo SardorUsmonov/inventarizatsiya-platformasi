@@ -196,6 +196,7 @@ try {
           "dark-mode-persisted",
           "light-mode-toggle-back",
           "dashboard-light-mode",
+          "holder-person-department-picker",
           "inventory-create-delete",
           "logout-confirm-cancel",
           "logout-confirm-accept",
@@ -255,7 +256,19 @@ async function runInventoryCreateSmoke(page) {
   await clearAndType(page, "#firstName", "Smoke");
   await clearAndType(page, "#lastName", "Asset");
   await selectFirstRealOption(page, "#departmentId");
-  await clearAndType(page, "#currentHolder", "Smoke Asset");
+  await page.click("#usePersonHolderButton");
+  await page.waitForFunction(() => document.querySelector("#currentHolder")?.value === "Smoke Asset", {
+    timeout: 5000,
+  });
+  await page.click("#useDepartmentHolderButton");
+  await page.waitForFunction(
+    () => {
+      const holder = document.querySelector("#currentHolder")?.value || "";
+      const department = document.querySelector("#departmentId")?.selectedOptions[0]?.textContent.trim() || "";
+      return Boolean(holder && department && holder === department);
+    },
+    { timeout: 5000 }
+  );
   await clearAndType(page, "#previousHolder", "-");
   await page.click("#inventoryWizardNextButton");
   await page.waitForFunction(

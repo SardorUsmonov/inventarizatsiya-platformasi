@@ -377,6 +377,10 @@
       paginationIndicator.textContent = `${currentPage} / ${totalPages}`;
       previousPageButton.disabled = currentPage <= 1;
       nextPageButton.disabled = currentPage >= totalPages;
+
+      if (typeof renderHolderSuggestions === "function") {
+        renderHolderSuggestions();
+      }
     };
 
     getInventoryPayload = function enhancedGetInventoryPayload() {

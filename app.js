@@ -40,6 +40,9 @@ const officeLocationInput = document.querySelector("#officeLocation");
 const accessoriesInput = document.querySelector("#accessories");
 const previousHolderInput = document.querySelector("#previousHolder");
 const currentHolderInput = document.querySelector("#currentHolder");
+const holderSuggestionsElement = document.querySelector("#holderSuggestions");
+const usePersonHolderButton = document.querySelector("#usePersonHolderButton");
+const useDepartmentHolderButton = document.querySelector("#useDepartmentHolderButton");
 const notesInput = document.querySelector("#notes");
 const inventoryWizardSteps = [...document.querySelectorAll("[data-inventory-step]")];
 const inventoryWizardPanels = [...document.querySelectorAll("[data-wizard-panel]")];
@@ -379,6 +382,14 @@ inventoryWizardNextButton.addEventListener("click", () => navigateInventoryWizar
 
 inventoryForm.addEventListener("input", () => syncInventoryWizardUI());
 inventoryForm.addEventListener("change", () => syncInventoryWizardUI());
+currentHolderInput.addEventListener("input", () => {
+  currentHolderInput.dataset.holderSource = currentHolderInput.value.trim() ? "manual" : "";
+});
+firstNameInput.addEventListener("input", syncLinkedHolderSource);
+lastNameInput.addEventListener("input", syncLinkedHolderSource);
+departmentSelect.addEventListener("change", syncLinkedHolderSource);
+usePersonHolderButton?.addEventListener("click", setCurrentHolderFromPerson);
+useDepartmentHolderButton?.addEventListener("click", setCurrentHolderFromDepartment);
 inventoryForm.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey || event.target instanceof HTMLTextAreaElement) {
     return;
@@ -1012,6 +1023,8 @@ function renderReferenceOptions() {
   if (!conditionStatusSelect.value && state.conditionStatuses[0]?.value) {
     conditionStatusSelect.value = state.conditionStatuses[0].value;
   }
+
+  renderHolderSuggestions();
 }
 
 function renderInventory(records, stats) {
@@ -1084,6 +1097,7 @@ function renderInventory(records, stats) {
     row.appendChild(actionsCell);
     inventoryTableBody.appendChild(row);
   });
+  renderHolderSuggestions();
 
   emptyState.style.display = records.length ? "none" : "block";
   emptyStateText.textContent = searchInput.value.trim()
@@ -2516,6 +2530,115 @@ function setInlineError(field, message) {
   error.className = "field-error";
   error.textContent = message;
   wrapper.appendChild(error);
+}
+
+function setCurrentHolderFromPerson() {
+  const holder = getPersonHolderLabel();
+
+  if (!holder) {
+    setInlineError(firstNameInput, "Avval xodim ismi yoki familyasini kiriting.");
+    firstNameInput.focus();
+    return;
+  }
+
+  setCurrentHolderValue(holder, "person");
+  showStatus("Hozir kimda maydoni xodim nomi bilan to'ldirildi.");
+}
+
+function setCurrentHolderFromDepartment() {
+  const holder = getDepartmentHolderLabel();
+
+  if (!holder) {
+    setInlineError(departmentSelect, "Avval bo'limni tanlang.");
+    departmentSelect.focus();
+    return;
+  }
+
+  setCurrentHolderValue(holder, "department");
+  showStatus("Hozir kimda maydoni bo'lim bilan to'ldirildi.");
+}
+
+function syncLinkedHolderSource() {
+  const source = currentHolderInput.dataset.holderSource;
+
+  if (source === "person") {
+    const holder = getPersonHolderLabel();
+
+    if (holder) {
+      setCurrentHolderValue(holder, "person", { silent: true });
+    }
+  }
+
+  if (source === "department") {
+    const holder = getDepartmentHolderLabel();
+
+    if (holder) {
+      setCurrentHolderValue(holder, "department", { silent: true });
+    }
+  }
+}
+
+function setCurrentHolderValue(value, source, options = {}) {
+  currentHolderInput.value = value;
+  currentHolderInput.dataset.holderSource = source;
+  clearInlineErrors([currentHolderInput, firstNameInput, departmentSelect]);
+
+  if (!options.silent) {
+    currentHolderInput.focus();
+  }
+
+  syncInventoryWizardUI();
+}
+
+function getPersonHolderLabel() {
+  return [firstNameInput.value.trim(), lastNameInput.value.trim()].filter(Boolean).join(" ");
+}
+
+function getDepartmentHolderLabel() {
+  return departmentSelect.value ? departmentSelect.selectedOptions[0]?.textContent.trim() || "" : "";
+}
+
+function renderHolderSuggestions() {
+  if (!holderSuggestionsElement) {
+    return;
+  }
+
+  const suggestions = new Map();
+  const addSuggestion = (value, label) => {
+    const normalizedValue = String(value || "").trim();
+
+    if (!normalizedValue) {
+      return;
+    }
+
+    suggestions.set(normalizedValue.toLowerCase(), {
+      label,
+      value: normalizedValue,
+    });
+  };
+
+  state.users
+    .filter((user) => user.isActive)
+    .forEach((user) => addSuggestion(user.fullName || user.username, "Foydalanuvchi"));
+
+  state.inventoryRecords.forEach((record) => {
+    addSuggestion(record.currentHolder, "Avvalgi egasi");
+    addSuggestion([record.firstName, record.lastName].filter(Boolean).join(" "), "Xodim");
+  });
+
+  state.departments
+    .filter((department) => department.isActive)
+    .forEach((department) => addSuggestion(formatDepartmentOption(department), "Bo'lim"));
+
+  holderSuggestionsElement.innerHTML = "";
+  [...suggestions.values()]
+    .sort((first, second) => first.value.localeCompare(second.value, "uz"))
+    .forEach((suggestion) => {
+      const option = document.createElement("option");
+      option.value = suggestion.value;
+      option.label = suggestion.label;
+      holderSuggestionsElement.appendChild(option);
+    });
 }
 
 function findLocalAssetTagDuplicate(assetTag) {
