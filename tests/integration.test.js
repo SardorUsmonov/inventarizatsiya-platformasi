@@ -337,8 +337,41 @@ test("viewer is restricted from modifying inventory", { concurrency: false }, as
   const deletedUserSession = await viewer.request("/api/session");
   assert.equal(deletedUserSession.response.status, 401);
 
+  const passwordResetUser = await admin.request("/api/users", {
+    body: {
+      fullName: "Password Reset User",
+      isActive: true,
+      mustChangePassword: false,
+      password: "Reset123!",
+      role: "viewer",
+      username: "password-reset-user",
+    },
+    method: "POST",
+  });
+  assert.equal(passwordResetUser.response.status, 201);
+
+  const passwordResetUpdate = await admin.request(`/api/users/${passwordResetUser.payload.user.id}`, {
+    body: {
+      fullName: "Password Reset User",
+      isActive: true,
+      mustChangePassword: true,
+      password: "Reset456!",
+      role: "viewer",
+      username: "password-reset-user",
+    },
+    method: "PUT",
+  });
+  assert.equal(passwordResetUpdate.response.status, 200);
+  assert.equal(passwordResetUpdate.payload.user.mustChangePassword, true);
+
+  const deletedPasswordResetUser = await admin.request(`/api/users/${passwordResetUser.payload.user.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedPasswordResetUser.response.status, 204);
+
   const users = await admin.request("/api/users");
   assert.ok(!users.payload.users.some((user) => user.username === "viewer"));
+  assert.ok(!users.payload.users.some((user) => user.username === "password-reset-user"));
 });
 
 test("audit log retention and archive export work", { concurrency: false }, async () => {

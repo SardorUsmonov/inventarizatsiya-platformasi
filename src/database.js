@@ -1881,14 +1881,14 @@ function createDatabase(config) {
             UPDATE users
             SET
               password_hash = ?,
-              must_change_password = 0,
+              must_change_password = ?,
               password_changed_at = ?,
               failed_login_attempts = 0,
               locked_until = '',
               updated_at = ?
             WHERE id = ?
           `)
-          .run(payload.passwordHash, getNow(), getNow(), userId);
+          .run(payload.passwordHash, payload.mustChangePassword ? 1 : 0, getNow(), getNow(), userId);
       }
 
       return this.getUserById(userId);
