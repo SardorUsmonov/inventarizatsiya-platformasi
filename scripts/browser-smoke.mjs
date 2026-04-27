@@ -106,6 +106,39 @@ try {
   }
 
   await page.screenshot({ path: path.join(outputDir, "dark.png"), fullPage: true });
+  await page.click("#themeToggleButton");
+  await page.waitForFunction(() => document.body.dataset.theme === "light", { timeout: 10000 });
+
+  const afterLightReturn = await page.evaluate(() => {
+    const toLuminance = (color) => {
+      const rgb = (color.match(/\d+(?:\.\d+)?/g) || []).slice(0, 3).map(Number);
+
+      if (rgb.length < 3) {
+        return 0;
+      }
+
+      return (0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2]);
+    };
+    const sessionChip = getComputedStyle(document.querySelector(".session-chip")).backgroundColor;
+    const compactSearch = getComputedStyle(document.querySelector(".topbar .search--compact")).backgroundColor;
+
+    return {
+      bodyTheme: document.body.dataset.theme || "light",
+      compactSearch,
+      compactSearchLuminance: toLuminance(compactSearch),
+      sessionChip,
+      sessionChipLuminance: toLuminance(sessionChip),
+    };
+  });
+
+  if (
+    afterLightReturn.bodyTheme !== "light" ||
+    afterLightReturn.sessionChipLuminance < 80 ||
+    afterLightReturn.compactSearchLuminance < 80
+  ) {
+    fail(`Light mode to'liq qaytmadi: ${JSON.stringify(afterLightReturn)}`);
+  }
+
   await page.click("#logoutButton");
   await page.waitForSelector("#logoutDialog[open]", { timeout: 10000 });
   await page.click("#logoutDialogCancelButton");
@@ -128,6 +161,7 @@ try {
           ...(isMobileViewport ? ["mobile-tab-navigation", "mobile-no-horizontal-overflow"] : []),
           "dark-mode-toggle",
           "dark-mode-persisted",
+          "light-mode-toggle-back",
           "logout-confirm-cancel",
           "logout-confirm-accept",
         ],

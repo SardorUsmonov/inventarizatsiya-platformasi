@@ -310,9 +310,9 @@ loginForm.addEventListener("submit", async (event) => {
 
     applySession(session);
     clearAuthFeedback();
-    showApp();
     await refreshDashboardData();
     await loadInventory();
+    showApp();
     loginForm.reset();
   } catch (error) {
     showAuthFeedback(error.message);
@@ -707,9 +707,9 @@ async function bootstrap() {
   try {
     const session = await request("/api/session");
     applySession(session);
-    showApp();
     await refreshDashboardData();
     await loadInventory();
+    showApp();
   } catch (error) {
     showAuth();
 
