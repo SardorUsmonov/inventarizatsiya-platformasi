@@ -572,6 +572,7 @@ app.delete("/api/inventory/:id", requirePermission("manageInventory"), (request,
     return;
   }
 
+  const attachments = database.listAttachments(recordId);
   const deletedRecord = database.deleteInventory(recordId);
 
   if (!deletedRecord) {
@@ -580,6 +581,8 @@ app.delete("/api/inventory/:id", requirePermission("manageInventory"), (request,
     });
     return;
   }
+
+  removeInventoryAttachmentFiles(recordId, attachments);
 
   database.logAudit({
     action: "inventory.delete",
@@ -822,9 +825,8 @@ app.delete("/api/inventory/:id/attachments/:attachmentId", requirePermission("ma
 
   const deletedAttachment = database.removeAttachment(attachmentId);
 
-  if (deletedAttachment?.filePath && fs.existsSync(deletedAttachment.filePath)) {
-    fs.unlinkSync(deletedAttachment.filePath);
-  }
+  removeStoredAttachmentFile(deletedAttachment?.filePath);
+  removeAttachmentRecordDirectoryIfEmpty(recordId);
 
   response.status(204).end();
 });
@@ -2492,6 +2494,62 @@ function clearDirectory(targetPath) {
       fs.unlinkSync(fullPath);
     }
   });
+}
+
+function removeInventoryAttachmentFiles(recordId, attachments = []) {
+  attachments.forEach((attachment) => {
+    removeStoredAttachmentFile(attachment.filePath);
+  });
+
+  const recordDir = path.join(config.attachmentsDir, String(recordId));
+  removeDirectoryInside(config.attachmentsDir, recordDir);
+}
+
+function removeAttachmentRecordDirectoryIfEmpty(recordId) {
+  const recordDir = path.join(config.attachmentsDir, String(recordId));
+
+  if (!isPathInside(config.attachmentsDir, recordDir) || !fs.existsSync(recordDir)) {
+    return;
+  }
+
+  try {
+    if (!fs.readdirSync(recordDir).length) {
+      fs.rmSync(recordDir, { force: true, recursive: false });
+    }
+  } catch (error) {
+    console.error("Bo'sh attachment papkasini o'chirishda xatolik.", error);
+  }
+}
+
+function removeStoredAttachmentFile(filePath) {
+  if (!filePath || !isPathInside(config.attachmentsDir, filePath) || !fs.existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.error("Attachment faylini o'chirishda xatolik.", error);
+  }
+}
+
+function removeDirectoryInside(rootDir, targetDir) {
+  if (!isPathInside(rootDir, targetDir) || !fs.existsSync(targetDir)) {
+    return;
+  }
+
+  try {
+    fs.rmSync(targetDir, { force: true, recursive: true });
+  } catch (error) {
+    console.error("Attachment papkasini o'chirishda xatolik.", error);
+  }
+}
+
+function isPathInside(rootDir, targetPath) {
+  const resolvedRoot = path.resolve(rootDir);
+  const resolvedTarget = path.resolve(targetPath);
+  const relativePath = path.relative(resolvedRoot, resolvedTarget);
+  return Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
 }
 
 function escapeHtml(value) {

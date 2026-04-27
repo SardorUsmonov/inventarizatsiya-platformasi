@@ -14,10 +14,14 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 let serverProcess;
 let tempDir;
+let attachmentsDir;
+let backupsDir;
 let databasePath;
 
 test.before(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "inventory-platform-"));
+  attachmentsDir = path.join(tempDir, "attachments");
+  backupsDir = path.join(tempDir, "backups");
   databasePath = path.join(tempDir, "inventory.sqlite");
 
   await startServer();
@@ -195,6 +199,45 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
     method: "DELETE",
   });
   assert.equal(blockedDeviceDelete.response.status, 409);
+
+  const serviceLog = await admin.request(`/api/inventory/${record.payload.record.id}/service-logs`, {
+    body: {
+      cost: 125000,
+      notes: "Fan tozalandi va termopasta yangilandi.",
+      serviceDate: "2026-02-20",
+      serviceType: "Profilaktika",
+      vendor: "Test service",
+    },
+    method: "POST",
+  });
+  assert.equal(serviceLog.response.status, 201);
+
+  const serviceLogs = await admin.request(`/api/inventory/${record.payload.record.id}/service-logs`);
+  assert.equal(serviceLogs.response.status, 200);
+  assert.ok(serviceLogs.payload.serviceLogs.some((item) => item.serviceType === "Profilaktika"));
+
+  const attachmentForm = new FormData();
+  attachmentForm.append(
+    "file",
+    new Blob([Buffer.from("Attachment cleanup QA")], {
+      type: "text/plain",
+    }),
+    "cleanup-note.txt"
+  );
+  const attachment = await admin.request(`/api/inventory/${record.payload.record.id}/attachments`, {
+    body: attachmentForm,
+    method: "POST",
+  });
+  assert.equal(attachment.response.status, 201);
+  assert.equal(await pathExists(attachment.payload.attachment.filePath), true);
+
+  const attachmentDir = path.dirname(attachment.payload.attachment.filePath);
+  const deletedInventoryRecord = await admin.request(`/api/inventory/${record.payload.record.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedInventoryRecord.response.status, 204);
+  assert.equal(await pathExists(attachment.payload.attachment.filePath), false);
+  assert.equal(await pathExists(attachmentDir), false);
 
   const removableDepartment = await admin.request("/api/departments", {
     body: {
@@ -726,6 +769,8 @@ async function startServer() {
       ADMIN_FULL_NAME: "Test Admin",
       ADMIN_PASSWORD: "Admin123!",
       ADMIN_USERNAME: "admin",
+      ATTACHMENTS_DIR: attachmentsDir,
+      BACKUPS_DIR: backupsDir,
       DATABASE_PATH: databasePath,
       FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE: "false",
       PORT: String(PORT),
@@ -862,4 +907,13 @@ function sleep(duration) {
   return new Promise((resolve) => {
     setTimeout(resolve, duration);
   });
+}
+
+async function pathExists(targetPath) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
