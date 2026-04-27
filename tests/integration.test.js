@@ -691,6 +691,80 @@ test("must change password flow blocks dashboard until password is updated", { c
   assert.equal(dashboard.response.status, 200);
 });
 
+test("backup restore rolls data back and clears stale session", { concurrency: false }, async () => {
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const keepDepartment = await admin.request("/api/departments", {
+    body: {
+      code: "RESTORE-KEEP",
+      description: "Restore backup ichida qolishi kerak.",
+      isActive: true,
+      name: "Restore Keep Department",
+    },
+    method: "POST",
+  });
+  assert.equal(keepDepartment.response.status, 201);
+
+  const backup = await admin.request("/api/system/backup");
+  assert.equal(backup.response.status, 200);
+  assert.ok(backup.payload.data.departments.some((department) => department.name === "Restore Keep Department"));
+
+  const temporaryDepartment = await admin.request("/api/departments", {
+    body: {
+      code: "RESTORE-TEMP",
+      description: "Restore'dan keyin yo'qolishi kerak.",
+      isActive: true,
+      name: "Restore Temporary Department",
+    },
+    method: "POST",
+  });
+  assert.equal(temporaryDepartment.response.status, 201);
+
+  const restoreForm = new FormData();
+  restoreForm.append(
+    "file",
+    new Blob([Buffer.from(JSON.stringify(backup.payload))], {
+      type: "application/json",
+    }),
+    "restore-backup.json"
+  );
+
+  const restored = await admin.request("/api/system/restore", {
+    body: restoreForm,
+    method: "POST",
+  });
+  assert.equal(restored.response.status, 200);
+
+  const staleSession = await admin.request("/api/session");
+  assert.equal(staleSession.response.status, 401);
+
+  const reloggedAdmin = createClient();
+  await reloggedAdmin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const dashboard = await reloggedAdmin.request("/api/dashboard");
+  assert.ok(dashboard.payload.departments.some((department) => department.name === "Restore Keep Department"));
+  assert.ok(!dashboard.payload.departments.some((department) => department.name === "Restore Temporary Department"));
+
+  const restoredKeepDepartment = dashboard.payload.departments.find((department) => department.name === "Restore Keep Department");
+  const deletedKeepDepartment = await reloggedAdmin.request(`/api/departments/${restoredKeepDepartment.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedKeepDepartment.response.status, 204);
+});
+
 test("automatic backup scheduler creates backup files and metrics", { concurrency: false }, async () => {
   const autoPort = PORT + 1;
   const autoBaseUrl = `http://127.0.0.1:${autoPort}`;
