@@ -423,7 +423,7 @@ inventoryForm.addEventListener("submit", async (event) => {
 });
 
 inventoryForm.addEventListener("reset", () => {
-  window.setTimeout(() => resetInventoryForm(), 0);
+  window.setTimeout(() => applyInventoryFormDefaults(), 0);
 });
 
 cancelEditButton.addEventListener("click", resetInventoryForm);
@@ -2618,6 +2618,10 @@ function fillUserForm(user) {
 
 function resetInventoryForm() {
   inventoryForm.reset();
+  applyInventoryFormDefaults();
+}
+
+function applyInventoryFormDefaults() {
   recordIdInput.value = "";
   assetStatusSelect.value = state.assetStatuses[0]?.value || "";
   conditionStatusSelect.value = state.conditionStatuses[0]?.value || "";

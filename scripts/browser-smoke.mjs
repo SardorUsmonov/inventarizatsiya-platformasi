@@ -138,6 +138,8 @@ try {
 
       return (0.2126 * rgb[0]) + (0.7152 * rgb[1]) + (0.0722 * rgb[2]);
     };
+    const dashboardPanel = getComputedStyle(document.querySelector(".dashboard-panel")).backgroundColor;
+    const dashboardEmptyState = getComputedStyle(document.querySelector("#dashboardEmptyState")).backgroundColor;
     const sessionChip = getComputedStyle(document.querySelector(".session-chip")).backgroundColor;
     const compactSearch = getComputedStyle(document.querySelector(".topbar .search--compact")).backgroundColor;
 
@@ -145,6 +147,10 @@ try {
       bodyTheme: document.body.dataset.theme || "light",
       compactSearch,
       compactSearchLuminance: toLuminance(compactSearch),
+      dashboardEmptyState,
+      dashboardEmptyStateLuminance: toLuminance(dashboardEmptyState),
+      dashboardPanel,
+      dashboardPanelLuminance: toLuminance(dashboardPanel),
       sessionChip,
       sessionChipLuminance: toLuminance(sessionChip),
     };
@@ -152,6 +158,8 @@ try {
 
   if (
     afterLightReturn.bodyTheme !== "light" ||
+    afterLightReturn.dashboardPanelLuminance < 80 ||
+    afterLightReturn.dashboardEmptyStateLuminance < 80 ||
     afterLightReturn.sessionChipLuminance < 80 ||
     afterLightReturn.compactSearchLuminance < 80
   ) {
@@ -187,6 +195,7 @@ try {
           "dark-mode-toggle",
           "dark-mode-persisted",
           "light-mode-toggle-back",
+          "dashboard-light-mode",
           "inventory-create-delete",
           "logout-confirm-cancel",
           "logout-confirm-accept",
@@ -204,7 +213,26 @@ try {
 }
 
 async function runInventoryCreateSmoke(page) {
-  await page.click('[data-tab-target="inventory"]');
+  await page.click('[data-tab-target="dashboard"]');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-tab-target="dashboard"]')?.classList.contains("is-active") &&
+      !document.querySelector("#tabDashboard")?.classList.contains("hidden"),
+    { timeout: 10000 }
+  );
+
+  const usedEmptyStateCta = await page.evaluate(() => {
+    const emptyState = document.querySelector("#dashboardEmptyState");
+    const emptyStateButton = emptyState?.querySelector('[data-scenario-action="assignment"]');
+    return Boolean(emptyState && !emptyState.classList.contains("hidden") && emptyStateButton);
+  });
+
+  if (usedEmptyStateCta) {
+    await page.click('#dashboardEmptyState [data-scenario-action="assignment"]');
+  } else {
+    await page.click("#dashboardAddAssetButton");
+  }
+
   await page.waitForFunction(
     () =>
       document.querySelector('[data-tab-target="inventory"]')?.classList.contains("is-active") &&
@@ -221,6 +249,7 @@ async function runInventoryCreateSmoke(page) {
       document.querySelector("#conditionStatus")?.options.length > 0,
     { timeout: 15000 }
   );
+  await sleep(250);
 
   const tag = `SMOKE-${Date.now()}`;
   await clearAndType(page, "#firstName", "Smoke");
@@ -297,6 +326,12 @@ async function clearAndType(page, selector, value) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await page.type(selector, value);
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 async function selectFirstRealOption(page, selector) {
