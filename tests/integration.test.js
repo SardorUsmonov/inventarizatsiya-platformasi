@@ -374,6 +374,70 @@ test("viewer is restricted from modifying inventory", { concurrency: false }, as
   assert.ok(!users.payload.users.some((user) => user.username === "password-reset-user"));
 });
 
+test("audit log access is restricted to administrators", { concurrency: false }, async () => {
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const restrictedUsers = [
+    {
+      role: "manager",
+      username: "audit-manager",
+    },
+    {
+      role: "auditor",
+      username: "audit-auditor",
+    },
+  ];
+
+  for (const restrictedUser of restrictedUsers) {
+    const createdUser = await admin.request("/api/users", {
+      body: {
+        fullName: `Audit Restricted ${restrictedUser.role}`,
+        isActive: true,
+        password: "Audit123!",
+        role: restrictedUser.role,
+        username: restrictedUser.username,
+      },
+      method: "POST",
+    });
+    assert.equal(createdUser.response.status, 201);
+
+    const client = createClient();
+    const login = await client.request("/api/auth/login", {
+      body: {
+        password: "Audit123!",
+        username: restrictedUser.username,
+      },
+      method: "POST",
+    });
+
+    assert.equal(login.response.status, 200);
+    assert.equal(login.payload.permissions.viewAudit, false);
+
+    const dashboard = await client.request("/api/dashboard");
+    assert.equal(dashboard.response.status, 200);
+    assert.deepEqual(dashboard.payload.auditLogs, []);
+    assert.equal(dashboard.payload.auditSettings, null);
+
+    const auditLogs = await client.request("/api/audit-logs");
+    assert.equal(auditLogs.response.status, 403);
+
+    const auditArchive = await client.request("/api/audit-logs/archive");
+    assert.equal(auditArchive.response.status, 403);
+
+    const deletedUser = await admin.request(`/api/users/${createdUser.payload.user.id}`, {
+      method: "DELETE",
+    });
+    assert.equal(deletedUser.response.status, 204);
+  }
+});
+
 test("audit log retention and archive export work", { concurrency: false }, async () => {
   const admin = createClient();
   await admin.request("/api/auth/login", {

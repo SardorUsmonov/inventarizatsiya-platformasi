@@ -9,7 +9,7 @@ const ROLE_LABELS = {
 
 const ROLE_DESCRIPTIONS = {
   admin: "Tizim, foydalanuvchi, zaxira nusxasi, audit va barcha aktivlarni to'liq boshqaradi.",
-  auditor: "Audit, hisobot va inventar ma'lumotlarini nazorat qiladi, lekin o'zgartira olmaydi.",
+  auditor: "Inventar va hisobot ma'lumotlarini nazorat qiladi, lekin audit log va sozlamalarni ko'ra olmaydi.",
   manager: "Inventar, katalog, servis, fayllar va hisobotlar bilan ishlaydi.",
   support: "Servis, fayllar va aktivlarning texnik holati bilan ishlaydi.",
   viewer: "Faqat ko'rish va eksport qilish huquqiga ega.",
@@ -33,7 +33,6 @@ const PERMISSION_MATRIX = {
   ],
   auditor: [
     "exportInventory",
-    "viewAudit",
     "viewInventory",
     "viewReports",
   ],
@@ -44,7 +43,6 @@ const PERMISSION_MATRIX = {
     "manageCatalogs",
     "manageInventory",
     "manageService",
-    "viewAudit",
     "viewInventory",
     "viewReports",
   ],
