@@ -20,32 +20,11 @@ test.before(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "inventory-platform-"));
   databasePath = path.join(tempDir, "inventory.sqlite");
 
-  serverProcess = spawn(process.execPath, ["server.js"], {
-    cwd: PROJECT_DIR,
-    env: {
-      ...process.env,
-      ADMIN_FULL_NAME: "Test Admin",
-      ADMIN_PASSWORD: "Admin123!",
-      ADMIN_USERNAME: "admin",
-      DATABASE_PATH: databasePath,
-      FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE: "false",
-      PORT: String(PORT),
-    },
-    stdio: "ignore",
-  });
-
-  await waitForServer();
+  await startServer();
 });
 
 test.after(async () => {
-  if (serverProcess && !serverProcess.killed) {
-    const exitPromise = new Promise((resolve) => {
-      serverProcess.once("exit", resolve);
-    });
-
-    serverProcess.kill("SIGTERM");
-    await exitPromise;
-  }
+  await stopServer();
 
   await fs.rm(tempDir, { force: true, recursive: true });
 });
@@ -249,6 +228,49 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
     method: "DELETE",
   });
   assert.equal(deletedDevice.response.status, 204);
+});
+
+test("deleted recommended catalogs stay removed after restart", { concurrency: false }, async () => {
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const dashboard = await admin.request("/api/dashboard");
+  const presetDepartment = dashboard.payload.departments.find((item) => item.name === "DevOps & SRE");
+  const presetDevice = dashboard.payload.devices.find((item) => item.name === "Dell Latitude 7440");
+
+  assert.ok(presetDepartment);
+  assert.ok(presetDevice);
+
+  const deletedDepartment = await admin.request(`/api/departments/${presetDepartment.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedDepartment.response.status, 204);
+
+  const deletedDevice = await admin.request(`/api/devices/${presetDevice.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedDevice.response.status, 204);
+
+  await restartServer();
+
+  const restartedAdmin = createClient();
+  await restartedAdmin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const restartedDashboard = await restartedAdmin.request("/api/dashboard");
+  assert.ok(!restartedDashboard.payload.departments.some((item) => item.name === "DevOps & SRE"));
+  assert.ok(!restartedDashboard.payload.devices.some((item) => item.name === "Dell Latitude 7440"));
 });
 
 test("viewer is restricted from modifying inventory", { concurrency: false }, async () => {
@@ -582,6 +604,43 @@ test("automatic backup scheduler creates backup files and metrics", { concurrenc
     await fs.rm(autoTempDir, { force: true, recursive: true });
   }
 });
+
+async function startServer() {
+  serverProcess = spawn(process.execPath, ["server.js"], {
+    cwd: PROJECT_DIR,
+    env: {
+      ...process.env,
+      ADMIN_FULL_NAME: "Test Admin",
+      ADMIN_PASSWORD: "Admin123!",
+      ADMIN_USERNAME: "admin",
+      DATABASE_PATH: databasePath,
+      FORCE_DEFAULT_ADMIN_PASSWORD_CHANGE: "false",
+      PORT: String(PORT),
+    },
+    stdio: "ignore",
+  });
+
+  await waitForServer();
+}
+
+async function stopServer() {
+  if (!serverProcess || serverProcess.killed) {
+    return;
+  }
+
+  const exitPromise = new Promise((resolve) => {
+    serverProcess.once("exit", resolve);
+  });
+
+  serverProcess.kill("SIGTERM");
+  await exitPromise;
+  serverProcess = null;
+}
+
+async function restartServer() {
+  await stopServer();
+  await startServer();
+}
 
 function createClient(baseUrl = BASE_URL) {
   const cookieJar = new Map();

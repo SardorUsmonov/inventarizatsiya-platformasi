@@ -14,17 +14,19 @@ const AUDIT_RETENTION_OPTIONS = [30, 90, 180];
 const DEFAULT_AUDIT_RETENTION_DAYS = 90;
 const DEFAULT_AUTO_BACKUP_HOUR = 3;
 const DEFAULT_AUTO_BACKUP_KEEP_DAYS = 14;
+const RECOMMENDED_CATALOGS_SEEDED_SETTING = "recommended_catalogs_seeded";
 
 function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
   fs.mkdirSync(config.attachmentsDir, { recursive: true });
   fs.mkdirSync(config.backupsDir, { recursive: true });
 
+  const isNewDatabase = !fs.existsSync(config.databasePath);
   const database = new DatabaseSync(config.databasePath);
   initializeDatabase(database);
   seedSystemSettings(database, config);
   seedDefaultAdmin(database, config);
-  seedRecommendedCatalogs(database);
+  seedRecommendedCatalogs(database, { isNewDatabase });
   seedCatalogsFromInventory(database);
   syncInventoryCatalogLinks(database);
   pruneAuditLogsByRetention(database);
@@ -2233,7 +2235,27 @@ function seedCatalogsFromInventory(database) {
   });
 }
 
-function seedRecommendedCatalogs(database) {
+function seedRecommendedCatalogs(database, options = {}) {
+  const hasAlreadySeeded = getSettingValue(database, RECOMMENDED_CATALOGS_SEEDED_SETTING, "") === "true";
+
+  if (hasAlreadySeeded) {
+    return;
+  }
+
+  const existingCatalogData = database
+    .prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM departments) +
+        (SELECT COUNT(*) FROM devices) +
+        (SELECT COUNT(*) FROM inventory_records) AS total
+    `)
+    .get().total;
+
+  if (!options.isNewDatabase || existingCatalogData > 0) {
+    setSettingValue(database, RECOMMENDED_CATALOGS_SEEDED_SETTING, "true");
+    return;
+  }
+
   defaultDepartments.forEach((department) => {
     insertDepartmentIfMissing(database, department);
   });
@@ -2241,6 +2263,8 @@ function seedRecommendedCatalogs(database) {
   defaultDevices.forEach((device) => {
     insertDeviceIfMissing(database, device);
   });
+
+  setSettingValue(database, RECOMMENDED_CATALOGS_SEEDED_SETTING, "true");
 }
 
 function syncInventoryCatalogLinks(database) {
