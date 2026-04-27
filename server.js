@@ -1478,6 +1478,61 @@ app.put("/api/users/:id", requirePermission("manageUsers"), (request, response) 
   });
 });
 
+app.delete("/api/users/:id", requirePermission("manageUsers"), (request, response) => {
+  const userId = parsePositiveInteger(request.params.id);
+
+  if (!userId) {
+    response.status(400).json({
+      message: "Foydalanuvchi identifikatori noto'g'ri.",
+    });
+    return;
+  }
+
+  if (userId === request.user.id) {
+    response.status(400).json({
+      message: "Joriy akkauntingizni o'chirib bo'lmaydi.",
+    });
+    return;
+  }
+
+  const currentUser = database.getUserById(userId);
+
+  if (!currentUser) {
+    response.status(404).json({
+      message: "Foydalanuvchi topilmadi.",
+    });
+    return;
+  }
+
+  if (currentUser.role === "admin" && currentUser.isActive && database.countOtherActiveAdmins(userId) === 0) {
+    response.status(400).json({
+      message: "Oxirgi faol administratorni o'chirib bo'lmaydi.",
+    });
+    return;
+  }
+
+  const user = database.deleteUser(userId);
+
+  database.logAudit({
+    action: "user.delete",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: {
+      fullName: user.fullName,
+      role: user.role,
+      username: user.username,
+    },
+    entityId: user.id,
+    entityType: "user",
+    ipAddress: request.ip,
+    summary: `${user.username} foydalanuvchisi o'chirildi.`,
+  });
+
+  response.status(204).end();
+});
+
 app.get("/api/audit-logs", requirePermission("viewAudit"), (request, response) => {
   const limit = Math.min(parsePositiveInteger(request.query.limit) || 100, 300);
   const logs = database.listAuditLogs({

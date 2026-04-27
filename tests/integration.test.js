@@ -275,7 +275,7 @@ test("deleted recommended catalogs stay removed after restart", { concurrency: f
 
 test("viewer is restricted from modifying inventory", { concurrency: false }, async () => {
   const admin = createClient();
-  await admin.request("/api/auth/login", {
+  const adminLogin = await admin.request("/api/auth/login", {
     body: {
       password: "Admin123!",
       username: "admin",
@@ -323,6 +323,22 @@ test("viewer is restricted from modifying inventory", { concurrency: false }, as
   });
 
   assert.equal(forbiddenCreate.response.status, 403);
+
+  const blockedSelfDelete = await admin.request(`/api/users/${adminLogin.payload.user.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(blockedSelfDelete.response.status, 400);
+
+  const deletedUser = await admin.request(`/api/users/${createdUser.payload.user.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(deletedUser.response.status, 204);
+
+  const deletedUserSession = await viewer.request("/api/session");
+  assert.equal(deletedUserSession.response.status, 401);
+
+  const users = await admin.request("/api/users");
+  assert.ok(!users.payload.users.some((user) => user.username === "viewer"));
 });
 
 test("audit log retention and archive export work", { concurrency: false }, async () => {

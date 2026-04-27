@@ -189,6 +189,7 @@ const userUsernameInput = document.querySelector("#userUsername");
 const userRoleSelect = document.querySelector("#userRole");
 const userPasswordInput = document.querySelector("#userPassword");
 const userIsActiveInput = document.querySelector("#userIsActive");
+const userMustChangePasswordInput = document.querySelector("#userMustChangePassword");
 const userSubmitButton = document.querySelector("#userSubmitButton");
 const cancelUserEditButton = document.querySelector("#cancelUserEditButton");
 const usersTableBody = document.querySelector("#usersTableBody");
@@ -2202,8 +2203,10 @@ function renderUsers() {
     appendCell(row, "F.I.Sh.", user.fullName);
     appendCell(row, "Login", user.username);
     appendCell(row, "Rol", getRoleLabel(user.role));
+    appendStackCell(row, "Xavfsizlik", getUserSecurityLines(user));
     appendTagCell(row, "Holat", user.isActive ? "Faol" : "Nofaol", user.isActive ? "" : "tag--danger");
-    appendActionCell(row, true, () => fillUserForm(user));
+    appendCell(row, "Oxirgi login", user.lastLoginAt ? formatDate(user.lastLoginAt) : "-");
+    appendUserActionCell(row, user);
     usersTableBody.appendChild(row);
   });
 }
@@ -2320,6 +2323,34 @@ function appendCatalogActionCell(row, canEdit, onEdit, onDelete) {
     wrapper.className = "row-actions";
     wrapper.appendChild(createRowButton("Tahrirlash", onEdit));
     wrapper.appendChild(createRowButton("O'chirish", onDelete, "row-action--danger"));
+    cell.appendChild(wrapper);
+  }
+
+  row.appendChild(cell);
+}
+
+function appendUserActionCell(row, user) {
+  const cell = document.createElement("td");
+  cell.dataset.label = "Amallar";
+  cell.textContent = state.permissions.manageUsers ? "" : "Ko'rish";
+
+  if (state.permissions.manageUsers) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "row-actions";
+    wrapper.appendChild(createRowButton("Tahrirlash", () => fillUserForm(user)));
+
+    const deleteButton = createRowButton(
+      "O'chirish",
+      () => deleteUserById(user.id, user.username).catch(handleError),
+      "row-action--danger"
+    );
+
+    if (state.user?.id === user.id) {
+      deleteButton.disabled = true;
+      deleteButton.title = "Joriy akkauntni o'chirib bo'lmaydi.";
+    }
+
+    wrapper.appendChild(deleteButton);
     cell.appendChild(wrapper);
   }
 
@@ -2735,6 +2766,7 @@ function fillUserForm(user) {
   userRoleSelect.value = user.role;
   userPasswordInput.value = "";
   userIsActiveInput.checked = Boolean(user.isActive);
+  userMustChangePasswordInput.checked = Boolean(user.mustChangePassword);
   userSubmitButton.textContent = "Yangilash";
   cancelUserEditButton.classList.remove("hidden");
 }
@@ -2798,6 +2830,27 @@ async function deleteDepartmentById(departmentId, departmentName) {
   }
 }
 
+async function deleteUserById(userId, username) {
+  const displayName = username || "Tanlangan";
+
+  if (!window.confirm(`"${displayName}" foydalanuvchisini o'chirmoqchimisiz?`)) {
+    return;
+  }
+
+  try {
+    await request(`/api/users/${userId}`, { method: "DELETE" });
+
+    if (parsePositiveInteger(userIdInput.value) === userId) {
+      resetUserForm();
+    }
+
+    await reloadSessionAndDashboard();
+    showStatus("Foydalanuvchi o'chirildi.");
+  } catch (error) {
+    showStatus(error.message, "error");
+  }
+}
+
 function resetDeviceForm() {
   deviceForm.reset();
   deviceCatalogId.value = "";
@@ -2810,6 +2863,7 @@ function resetUserForm() {
   userForm.reset();
   userIdInput.value = "";
   userIsActiveInput.checked = true;
+  userMustChangePasswordInput.checked = false;
   userSubmitButton.textContent = "Saqlash";
   cancelUserEditButton.classList.add("hidden");
 }
@@ -3035,10 +3089,31 @@ function getUserPayload() {
   return {
     fullName: userFullNameInput.value.trim(),
     isActive: userIsActiveInput.checked,
+    mustChangePassword: userMustChangePasswordInput.checked,
     password: userPasswordInput.value,
     role: userRoleSelect.value,
     username: userUsernameInput.value.trim(),
   };
+}
+
+function getUserSecurityLines(user) {
+  const lines = [];
+  const lockedUntil = user.lockedUntil ? Date.parse(user.lockedUntil) : 0;
+
+  if (lockedUntil && lockedUntil > Date.now()) {
+    lines.push("Vaqtincha bloklangan");
+    lines.push(`Ochiladi: ${formatDate(user.lockedUntil)}`);
+  } else if (user.mustChangePassword) {
+    lines.push("Parol yangilanishi kerak");
+  } else {
+    lines.push("Parol normal");
+  }
+
+  if (Number(user.failedLoginAttempts || 0) > 0) {
+    lines.push(`${user.failedLoginAttempts} ta muvaffaqiyatsiz urinish`);
+  }
+
+  return lines;
 }
 
 function getRoleLabel(role) {
@@ -3167,6 +3242,7 @@ function formatAuditActionLabel(value) {
     "catalog.device_delete": "Texnika o'chirildi",
     "user.create": "Foydalanuvchi yaratildi",
     "user.update": "Foydalanuvchi yangilandi",
+    "user.delete": "Foydalanuvchi o'chirildi",
     "audit.retention_update": "Audit tozalash rejimi yangilandi",
     "audit.archive": "Audit arxivlandi",
     "system.restore": "Tizim tiklandi",

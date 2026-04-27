@@ -233,6 +233,26 @@ function createDatabase(config) {
     deleteSessionsByUserId(userId) {
       database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
     },
+    deleteUser(userId) {
+      const existingUser = this.getUserById(userId);
+
+      if (!existingUser) {
+        return null;
+      }
+
+      database.exec("BEGIN IMMEDIATE");
+
+      try {
+        database.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+        database.prepare("DELETE FROM users WHERE id = ?").run(userId);
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+
+      return existingUser;
+    },
     deleteDevice(deviceId) {
       const existingDevice = this.getDeviceById(deviceId);
 
