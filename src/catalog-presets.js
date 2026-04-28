@@ -218,6 +218,30 @@ const defaultDevices = [
     model: "LaserJet Pro M404dn",
     name: "HP LaserJet Pro M404dn",
   },
+  {
+    category: "Furniture",
+    description: "Xodim ish joyiga biriktiriladigan ofis stoli.",
+    model: "Office Desk",
+    name: "Ofis stoli",
+  },
+  {
+    category: "Furniture",
+    description: "Xodimga biriktiriladigan ergonomik ofis stuli.",
+    model: "Ergonomic Chair",
+    name: "Ofis stuli",
+  },
+  {
+    category: "Furniture",
+    description: "Hujjat va jihozlarni saqlash uchun ofis shkafi.",
+    model: "Storage Cabinet",
+    name: "Ofis shkafi",
+  },
+  {
+    category: "Furniture",
+    description: "Ish joyi yonida ishlatiladigan tumba yoki kichik saqlash jihozi.",
+    model: "Pedestal",
+    name: "Ofis tumbasi",
+  },
 ];
 
 module.exports = {

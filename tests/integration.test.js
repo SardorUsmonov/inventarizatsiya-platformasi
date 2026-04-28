@@ -50,6 +50,7 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(dashboard.response.status, 200);
   assert.ok(dashboard.payload.departments.some((item) => item.name === "DevOps & SRE"));
   assert.ok(dashboard.payload.devices.some((item) => item.name === "Dell Latitude 7440"));
+  assert.ok(dashboard.payload.devices.some((item) => item.name === "Ofis stuli" && item.category === "Furniture"));
   assert.ok(Array.isArray(dashboard.payload.inventoryMeta.assetStatuses));
   assert.ok(Array.isArray(dashboard.payload.inventoryMeta.conditionStatuses));
 
@@ -200,6 +201,28 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   });
   assert.equal(blockedDeviceDelete.response.status, 409);
 
+  const legacyLinkDatabase = new DatabaseSync(databasePath);
+  legacyLinkDatabase
+    .prepare("UPDATE inventory_records SET department_id = NULL, device_id = NULL WHERE id = ?")
+    .run(record.payload.record.id);
+  legacyLinkDatabase.close();
+
+  const blockedDepartmentDeleteByName = await admin.request(`/api/departments/${department.payload.department.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(blockedDepartmentDeleteByName.response.status, 409);
+
+  const blockedDeviceDeleteByName = await admin.request(`/api/devices/${device.payload.device.id}`, {
+    method: "DELETE",
+  });
+  assert.equal(blockedDeviceDeleteByName.response.status, 409);
+
+  const restoredLinkDatabase = new DatabaseSync(databasePath);
+  restoredLinkDatabase
+    .prepare("UPDATE inventory_records SET department_id = ?, device_id = ? WHERE id = ?")
+    .run(department.payload.department.id, device.payload.device.id, record.payload.record.id);
+  restoredLinkDatabase.close();
+
   const serviceLog = await admin.request(`/api/inventory/${record.payload.record.id}/service-logs`, {
     body: {
       cost: 125000,
@@ -314,6 +337,50 @@ test("deleted recommended catalogs stay removed after restart", { concurrency: f
   const restartedDashboard = await restartedAdmin.request("/api/dashboard");
   assert.ok(!restartedDashboard.payload.departments.some((item) => item.name === "DevOps & SRE"));
   assert.ok(!restartedDashboard.payload.devices.some((item) => item.name === "Dell Latitude 7440"));
+});
+
+test("legacy inventory names do not recreate deleted catalogs on restart", { concurrency: false }, async () => {
+  const legacyDepartmentName = "Legacy Ghost Department";
+  const legacyDeviceName = "Legacy Ghost Device";
+  const now = new Date().toISOString();
+  const database = new DatabaseSync(databasePath);
+
+  database
+    .prepare(`
+      INSERT INTO inventory_records (
+        first_name,
+        last_name,
+        department,
+        department_id,
+        device_name,
+        device_id,
+        current_holder,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, NULL, ?, NULL, ?, ?, ?)
+    `)
+    .run("Legacy", "Ghost", legacyDepartmentName, legacyDeviceName, "Legacy Ghost", now, now);
+  const legacyRecordId = database.prepare("SELECT last_insert_rowid() AS id").get().id;
+  database.close();
+
+  await restartServer();
+
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const dashboard = await admin.request("/api/dashboard");
+  assert.ok(!dashboard.payload.departments.some((item) => item.name === legacyDepartmentName));
+  assert.ok(!dashboard.payload.devices.some((item) => item.name === legacyDeviceName));
+
+  const cleanupDatabase = new DatabaseSync(databasePath);
+  cleanupDatabase.prepare("DELETE FROM inventory_records WHERE id = ?").run(legacyRecordId);
+  cleanupDatabase.close();
 });
 
 test("viewer is restricted from modifying inventory", { concurrency: false }, async () => {

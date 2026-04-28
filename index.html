@@ -171,14 +171,21 @@
                   <button class="scenario-card scenario-card--brand" data-scenario-action="assignment" type="button">
                     <span class="scenario-card__code">IN</span>
                     <strong class="scenario-card__title">Inventar biriktirish</strong>
-                    <span class="scenario-card__text">Texnikani xodimga biriktirish uchun to'liq inventar formasini oching.</span>
+                    <span class="scenario-card__text">Jihoz, texnika yoki aktivni xodimga biriktirish uchun formani oching.</span>
                     <span class="scenario-card__metric" id="scenarioAssignmentMetric">Biriktirish oqimi tayyor</span>
                   </button>
 
+                  <button class="scenario-card scenario-card--info" data-scenario-action="furniture" type="button">
+                    <span class="scenario-card__code">MJ</span>
+                    <strong class="scenario-card__title">Mebel/jihoz biriktirish</strong>
+                    <span class="scenario-card__text">Stol, stul, shkaf yoki boshqa jihozni xodim yoki bo'limga biriktiring.</span>
+                    <span class="scenario-card__metric">Mebel oqimi tayyor</span>
+                  </button>
+
                   <button class="scenario-card scenario-card--info" data-scenario-action="device" type="button">
-                    <span class="scenario-card__code">TX</span>
-                    <strong class="scenario-card__title">Texnika qo'shish</strong>
-                    <span class="scenario-card__text">Yangi model, kategoriya yoki qurilmani katalogga kiriting.</span>
+                    <span class="scenario-card__code">JX</span>
+                    <strong class="scenario-card__title">Jihoz/texnika qo'shish</strong>
+                    <span class="scenario-card__text">Yangi mebel, model, kategoriya yoki qurilmani katalogga kiriting.</span>
                     <span class="scenario-card__metric" id="scenarioDeviceMetric">Katalog tayyor</span>
                   </button>
 
@@ -630,8 +637,8 @@
                     <button class="wizard-step" data-inventory-step="1" type="button">
                       <span class="wizard-step__index">2</span>
                       <span class="wizard-step__copy">
-                        <strong class="wizard-step__title">Texnika</strong>
-                        <span class="wizard-step__text">Qurilma va status</span>
+                        <strong class="wizard-step__title">Jihoz/texnika</strong>
+                        <span class="wizard-step__text">Aktiv turi va status</span>
                       </span>
                     </button>
                     <button class="wizard-step" data-inventory-step="2" type="button">
@@ -685,6 +692,16 @@
                           </div>
                         </div>
                         <datalist id="holderSuggestions"></datalist>
+                        <datalist id="deviceCategorySuggestions">
+                          <option value="Mebel"></option>
+                          <option value="Noutbuk"></option>
+                          <option value="Monitor"></option>
+                          <option value="Printer"></option>
+                          <option value="Stol kompyuteri"></option>
+                          <option value="Tarmoq uskunasi"></option>
+                          <option value="Periferiya"></option>
+                          <option value="Quvvat qurilmasi"></option>
+                        </datalist>
                       </label>
 
                       <label class="field field--full">
@@ -697,13 +714,13 @@
                   <section class="wizard-panel hidden" data-wizard-panel="1">
                     <div class="wizard-panel__intro">
                       <p class="panel__eyebrow">2-qadam</p>
-                      <h3>Texnika va identifikatsiya</h3>
-                      <p class="panel__subtext">Qurilma, teg, serial raqam va statusni tanlang.</p>
+                      <h3>Jihoz/texnika va identifikatsiya</h3>
+                      <p class="panel__subtext">Mebel, qurilma yoki boshqa aktiv turini, teg, serial raqam va statusni tanlang.</p>
                     </div>
 
                     <div class="wizard-panel__grid">
                       <label class="field">
-                        <span>Texnika</span>
+                        <span>Jihoz/texnika</span>
                         <select id="deviceId" required></select>
                       </label>
 
@@ -825,15 +842,15 @@
                 <div class="quick-catalog__header">
                   <div>
                     <p class="panel__eyebrow">Qo'lda qo'shish</p>
-                    <h3>Kerakli bo'lim yoki texnikani shu yerning o'zidan yarating</h3>
-                    <p class="quick-catalog__text">Yangi element saqlangach, u inventar formasida avtomatik tanlanadi.</p>
+                    <h3>Kerakli bo'lim yoki jihoz/texnikani shu yerning o'zidan yarating</h3>
+                    <p class="quick-catalog__text">Mebel, texnika yoki boshqa jihoz saqlangach, u inventar formasida avtomatik tanlanadi.</p>
                   </div>
                   <button class="ghost-button quick-catalog__link" id="openFullCatalogButton" type="button">Kataloglarni ochish</button>
                 </div>
 
                 <div class="quick-catalog__actions">
                   <button class="secondary-button" id="openQuickDepartmentButton" type="button">Bo'lim/soha qo'shish</button>
-                  <button class="secondary-button" id="openQuickDeviceButton" type="button">Texnika qo'shish</button>
+                  <button class="secondary-button" id="openQuickDeviceButton" type="button">Jihoz/texnika qo'shish</button>
                 </div>
 
                 <form class="quick-catalog-form hidden" id="quickDepartmentForm">
@@ -867,26 +884,26 @@
 
                 <form class="quick-catalog-form hidden" id="quickDeviceForm">
                   <div>
-                    <p class="panel__eyebrow">Yangi texnika</p>
-                    <h3>Texnika qo'shish</h3>
+                    <p class="panel__eyebrow">Yangi jihoz/texnika</p>
+                    <h3>Mebel yoki texnika qo'shish</h3>
                   </div>
 
                   <div class="quick-catalog-form__grid">
                     <label class="field">
                       <span>Nomi</span>
-                      <input id="quickDeviceName" type="text" placeholder="Masalan: Lenovo ThinkCentre M90q" required>
+                      <input id="quickDeviceName" type="text" placeholder="Masalan: Ofis stuli yoki Lenovo ThinkCentre" required>
                     </label>
 
                     <label class="field">
                       <span>Kategoriya</span>
-                      <input id="quickDeviceCategory" type="text" placeholder="Masalan: Stol kompyuteri">
+                      <input id="quickDeviceCategory" type="text" list="deviceCategorySuggestions" placeholder="Masalan: Mebel">
                     </label>
                   </div>
 
                   <div class="quick-catalog-form__grid">
                     <label class="field">
                       <span>Model</span>
-                      <input id="quickDeviceModel" type="text" placeholder="Masalan: M90q Gen 4">
+                      <input id="quickDeviceModel" type="text" placeholder="Masalan: Ergonomik stul yoki M90q Gen 4">
                     </label>
 
                     <label class="field">
@@ -917,13 +934,14 @@
                   <div class="operations-group__header">
                     <p class="panel__eyebrow">Tezkor amallar</p>
                     <h3>Operatsion boshqaruv</h3>
-                    <p class="panel__subtext">Yangi yozuv, xodim, bo'lim yoki texnika kiritishni bevosita ish oqimidan boshlang.</p>
+                    <p class="panel__subtext">Yangi yozuv, xodim, bo'lim, mebel yoki texnika kiritishni bevosita ish oqimidan boshlang.</p>
                   </div>
 
                   <div class="toolbar toolbar--operations">
                     <button class="primary-button" data-scenario-action="assignment" type="button">Yangi inventar</button>
                     <button class="secondary-button" data-scenario-action="employee" type="button">Hodim kartasi</button>
-                    <button class="secondary-button" data-scenario-action="device" type="button">Texnika qo'shish</button>
+                    <button class="secondary-button" data-scenario-action="furniture" type="button">Mebel/jihoz biriktirish</button>
+                    <button class="secondary-button" data-scenario-action="device" type="button">Jihoz/texnika qo'shish</button>
                     <button class="secondary-button" data-scenario-action="department" type="button">Bo'lim qo'shish</button>
                     <button class="ghost-button" id="refreshButton" type="button">Yangilash</button>
                   </div>
@@ -933,7 +951,7 @@
                   <div class="operations-group__header">
                     <p class="panel__eyebrow">Filtrlash va ko'rinish</p>
                     <h3>Joriy ish maydoni</h3>
-                    <p class="panel__subtext">Qidiruv, bo'lim, texnika, holat va saralashlar bilan operatsion ro'yxatni boshqaring.</p>
+                    <p class="panel__subtext">Qidiruv, bo'lim, jihoz/texnika, holat va saralashlar bilan operatsion ro'yxatni boshqaring.</p>
                   </div>
 
                   <div class="toolbar toolbar--filters">
@@ -941,7 +959,7 @@
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
                       </svg>
-                      <input id="searchInput" type="search" placeholder="Ism, bo'lim, texnika yoki egasi bo'yicha qidiring">
+                      <input id="searchInput" type="search" placeholder="Ism, bo'lim, jihoz/texnika yoki egasi bo'yicha qidiring">
                     </label>
                     <select class="toolbar-select" id="filterDepartmentId"></select>
                     <select class="toolbar-select" id="filterDeviceId"></select>
@@ -1199,7 +1217,7 @@
                 <div>
                   <p class="panel__eyebrow">Kataloglar</p>
                   <h2>Alohida boshqaruv oynalari</h2>
-                  <p class="panel__subtext">Bo'limlar va texnikalar jarayonlari alohida ochiladi, har birida o'z qidiruvi, formasi va ro'yxati bor.</p>
+                  <p class="panel__subtext">Bo'limlar, mebel va texnikalar jarayonlari alohida ochiladi, har birida o'z qidiruvi, formasi va ro'yxati bor.</p>
                 </div>
 
                 <div class="catalog-segment" role="tablist" aria-label="Katalog turini tanlash">
@@ -1211,10 +1229,10 @@
                     </span>
                   </button>
                   <button class="catalog-segment__button" data-catalog-panel-target="devices" type="button" role="tab" aria-selected="false">
-                    <span class="catalog-segment__icon">TX</span>
+                    <span class="catalog-segment__icon">JX</span>
                     <span>
-                      <strong>Texnikalar</strong>
-                      <small>Qurilmalar katalogi</small>
+                      <strong>Jihoz/texnikalar</strong>
+                      <small>Mebel va qurilmalar katalogi</small>
                     </span>
                   </button>
                 </div>
@@ -1293,9 +1311,9 @@
             <section class="panel catalog-panel hidden" id="catalogPanelDevices" data-catalog-panel="devices" role="tabpanel">
               <div class="panel__header">
                 <div>
-                  <p class="panel__eyebrow">Texnika katalogi</p>
-                  <h2>Texnikalar</h2>
-                  <p class="panel__subtext">Noutbuk, monitor, dok stansiya, garnitura, telefon va tarmoq uskunalari bilan tayyor katalog mavjud.</p>
+                  <p class="panel__eyebrow">Jihoz/texnika katalogi</p>
+                  <h2>Jihoz va texnikalar</h2>
+                  <p class="panel__subtext">Mebel, noutbuk, monitor, dok stansiya, telefon va boshqa moddiy aktivlar uchun katalog.</p>
                 </div>
                 <button class="ghost-button hidden" id="cancelDeviceEditButton" type="button">Bekor qilish</button>
               </div>
@@ -1305,7 +1323,7 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M10.5 4a6.5 6.5 0 1 0 4.11 11.53l4.43 4.42 1.41-1.41-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"></path>
                   </svg>
-                  <input id="deviceCatalogSearch" type="search" placeholder="Texnika, kategoriya yoki model bo'yicha qidiring">
+                  <input id="deviceCatalogSearch" type="search" placeholder="Jihoz/texnika, kategoriya yoki model bo'yicha qidiring">
                 </label>
               </div>
 
@@ -1313,18 +1331,18 @@
                 <input type="hidden" id="deviceCatalogId">
 
                 <label class="field">
-                  <span>Texnika nomi</span>
-                  <input id="deviceCatalogName" type="text" placeholder="Masalan: Dell Latitude 5520" required>
+                  <span>Jihoz/texnika nomi</span>
+                  <input id="deviceCatalogName" type="text" placeholder="Masalan: Ofis stuli yoki Dell Latitude 5520" required>
                 </label>
 
                 <label class="field">
                   <span>Kategoriya</span>
-                  <input id="deviceCategory" type="text" placeholder="Masalan: Noutbuk">
+                  <input id="deviceCategory" type="text" list="deviceCategorySuggestions" placeholder="Masalan: Mebel">
                 </label>
 
                 <label class="field">
                   <span>Model</span>
-                  <input id="deviceModel" type="text" placeholder="Masalan: 5520">
+                  <input id="deviceModel" type="text" placeholder="Masalan: Ergonomik stul yoki 5520">
                 </label>
 
                 <label class="field">
@@ -1346,7 +1364,7 @@
                 <table>
                   <thead>
                     <tr>
-                      <th>Texnika</th>
+                      <th>Jihoz/texnika</th>
                       <th>Kategoriya</th>
                       <th>Holat</th>
                       <th>Amallar</th>

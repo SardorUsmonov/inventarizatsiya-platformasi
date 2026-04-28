@@ -481,7 +481,7 @@ quickDeviceForm.addEventListener("submit", async (event) => {
     await refreshDashboardData();
     deviceSelect.value = String(response.device.id);
     resetQuickDeviceForm();
-    showStatus("Yangi texnika qo'shildi va darrov tanlandi.");
+    showStatus("Yangi jihoz/texnika qo'shildi va darrov tanlandi.");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -592,7 +592,7 @@ deviceForm.addEventListener("submit", async (event) => {
     resetDeviceForm();
     await refreshDashboardData();
     await loadInventory({ silent: true });
-    showStatus(deviceId ? "Texnika yangilandi." : "Texnika katalogga qo'shildi.");
+    showStatus(deviceId ? "Jihoz/texnika yangilandi." : "Jihoz/texnika katalogga qo'shildi.");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -1207,8 +1207,8 @@ function renderOperationalScenarios(stats) {
 
   if (scenarioDeviceMetricElement) {
     scenarioDeviceMetricElement.textContent = activeCatalogDevices
-      ? `${activeCatalogDevices} ta faol texnika katalogda`
-      : "Yangi texnika katalogga kiritiladi";
+      ? `${activeCatalogDevices} ta faol jihoz/texnika katalogda`
+      : "Yangi jihoz yoki texnika katalogga kiritiladi";
   }
 
   if (scenarioDepartmentMetricElement) {
@@ -1252,6 +1252,7 @@ function isScenarioAllowed(action) {
   switch (action) {
     case "employee":
     case "assignment":
+    case "furniture":
       return Boolean(state.permissions.manageInventory);
     case "department":
     case "device":
@@ -1269,6 +1270,7 @@ function getScenarioDisabledMessage(action) {
   switch (action) {
     case "employee":
     case "assignment":
+    case "furniture":
       return "Bu stsenariy uchun inventar boshqaruv huquqi kerak.";
     case "department":
     case "device":
@@ -1310,14 +1312,30 @@ function runScenario(action) {
       resetQuickDeviceForm();
       activateTab("inventory");
       activateInventoryPanel("create");
-      showStatus("Inventar biriktirish stsenariysi ochildi. Xodim, bo'lim va texnikani to'ldiring.");
+      showStatus("Inventar biriktirish stsenariysi ochildi. Xodim, bo'lim va jihoz/texnikani to'ldiring.");
       focusAndRevealField(departmentSelect);
+      break;
+    case "furniture":
+      resetInventoryForm();
+      resetQuickDepartmentForm();
+      resetQuickDeviceForm();
+      activateTab("inventory");
+      activateInventoryPanel("create");
+      if (state.permissions.manageCatalogs) {
+        showQuickCatalogForm("device");
+        quickDeviceCategoryInput.value = "Mebel";
+        focusAndRevealField(quickDeviceNameInput);
+      } else {
+        focusAndRevealField(deviceSelect);
+      }
+      showStatus("Mebel/jihoz biriktirish ochildi. Avval mebelni katalogga kiriting yoki mavjudini tanlab xodim/bo'limga biriktiring.");
       break;
     case "device":
       resetDeviceForm();
       activateTab("catalogs");
       activateCatalogPanel("devices");
-      showStatus("Texnika qo'shish stsenariysi ochildi. Yangi qurilmani katalogga kiriting.");
+      deviceCategoryInput.value = "";
+      showStatus("Jihoz/texnika qo'shish stsenariysi ochildi. Mebel, qurilma yoki boshqa aktiv turini katalogga kiriting.");
       focusAndRevealField(deviceCatalogNameInput);
       break;
     case "department":
@@ -2182,14 +2200,14 @@ function renderDevices() {
       state.permissions.manageCatalogs,
       () => fillDeviceForm(device),
       async () => {
-        if (!window.confirm(`"${device.name}" texnikasini o'chirmoqchimisiz?`)) {
+        if (!window.confirm(`"${device.name}" jihoz/texnikasini o'chirmoqchimisiz?`)) {
           return;
         }
 
         await request(`/api/devices/${device.id}`, { method: "DELETE" });
         await refreshDashboardData();
         await loadInventory({ silent: true });
-        showStatus("Texnika katalogdan o'chirildi.");
+        showStatus("Jihoz/texnika katalogdan o'chirildi.");
       }
     );
     devicesTableBody.appendChild(row);
@@ -3191,6 +3209,8 @@ function localizeDeviceCategory(value) {
     Printer: "Printer",
     Peripheral: "Periferiya",
     Desktop: "Stol kompyuteri",
+    Furniture: "Mebel",
+    Mebel: "Mebel",
   };
 
   return labels[value] || value || "";

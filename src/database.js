@@ -14,6 +14,7 @@ const AUDIT_RETENTION_OPTIONS = [30, 90, 180];
 const DEFAULT_AUDIT_RETENTION_DAYS = 90;
 const DEFAULT_AUTO_BACKUP_HOUR = 3;
 const DEFAULT_AUTO_BACKUP_KEEP_DAYS = 14;
+const INVENTORY_CATALOGS_SYNCED_SETTING = "inventory_catalogs_synced";
 const RECOMMENDED_CATALOGS_SEEDED_SETTING = "recommended_catalogs_seeded";
 
 function createDatabase(config) {
@@ -27,7 +28,7 @@ function createDatabase(config) {
   seedSystemSettings(database, config);
   seedDefaultAdmin(database, config);
   seedRecommendedCatalogs(database, { isNewDatabase });
-  seedCatalogsFromInventory(database);
+  seedCatalogsFromInventory(database, { isNewDatabase });
   syncInventoryCatalogLinks(database);
   pruneAuditLogsByRetention(database);
 
@@ -500,22 +501,36 @@ function createDatabase(config) {
       };
     },
     getInventoryUsageByDepartmentId(departmentId) {
+      const department = this.getDepartmentById(departmentId);
+
+      if (!department) {
+        return 0;
+      }
+
       return database
         .prepare(`
           SELECT COUNT(*) AS total
           FROM inventory_records
           WHERE department_id = ?
+             OR lower(trim(department)) = lower(trim(?))
         `)
-        .get(departmentId).total;
+        .get(departmentId, department.name).total;
     },
     getInventoryUsageByDeviceId(deviceId) {
+      const device = this.getDeviceById(deviceId);
+
+      if (!device) {
+        return 0;
+      }
+
       return database
         .prepare(`
           SELECT COUNT(*) AS total
           FROM inventory_records
           WHERE device_id = ?
+             OR lower(trim(device_name)) = lower(trim(?))
         `)
-        .get(deviceId).total;
+        .get(deviceId, device.name).total;
     },
     listAttentionInventory(limit = 6) {
       return database
@@ -2229,7 +2244,26 @@ function seedSystemSettings(database, config) {
   });
 }
 
-function seedCatalogsFromInventory(database) {
+function seedCatalogsFromInventory(database, options = {}) {
+  const hasAlreadySynced = getSettingValue(database, INVENTORY_CATALOGS_SYNCED_SETTING, "") === "true";
+
+  if (hasAlreadySynced) {
+    return;
+  }
+
+  const existingCatalogData = database
+    .prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM departments) +
+        (SELECT COUNT(*) FROM devices) AS total
+    `)
+    .get().total;
+
+  if (!options.isNewDatabase || existingCatalogData > 0) {
+    setSettingValue(database, INVENTORY_CATALOGS_SYNCED_SETTING, "true");
+    return;
+  }
+
   const departmentNames = database
     .prepare(`
       SELECT DISTINCT trim(department) AS name
@@ -2253,6 +2287,8 @@ function seedCatalogsFromInventory(database) {
   deviceNames.forEach((item) => {
     insertDeviceIfMissing(database, item.name);
   });
+
+  setSettingValue(database, INVENTORY_CATALOGS_SYNCED_SETTING, "true");
 }
 
 function seedRecommendedCatalogs(database, options = {}) {
