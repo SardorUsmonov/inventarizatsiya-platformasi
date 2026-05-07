@@ -32,6 +32,13 @@ Brauzerda `http://localhost:3000` ni oching.
 npm.cmd test
 ```
 
+## QR nazorati
+
+Jihozlarga QR yopishtirish, direktor skani va dashboard monitoringi bo'yicha qo'llanma:
+
+- Markdown: `docs/QR_NAZORAT_QOLLANMA.md`
+- PDF: `docs/QR_NAZORAT_QOLLANMA.pdf`
+
 ## Sozlamalar
 
 Kerak bo'lsa quyidagi environment variable larni o'zgartiring:
@@ -42,6 +49,7 @@ $env:ADMIN_USERNAME="superadmin"
 $env:ADMIN_PASSWORD="KuchliParol123!"
 $env:ADMIN_FULL_NAME="Bosh administrator"
 $env:DATABASE_PATH="C:\\inventory\\inventory.sqlite"
+$env:AUTO_BACKUP_INTERVAL_MS="10800000"
 npm.cmd start
 ```
 
@@ -107,6 +115,8 @@ npm.cmd run smoke:url
 ## Doimiy saqlashni yoqish
 
 Render free plan ma'lumotlarni doimiy saqlashni kafolatlamaydi. To'liq production holat uchun `starter + persistent disk` kerak.
+
+Avtomatik backup har 3 soatda ishlashi uchun production muhitida `AUTO_BACKUP_INTERVAL_MS=10800000` qo'yilgan bo'lishi kerak. Bu qiymat millisekundda: `3 * 60 * 60 * 1000`.
 
 1. Render billing sahifasida karta qo'shing:
 

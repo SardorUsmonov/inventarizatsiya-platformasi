@@ -1,0 +1,48 @@
+services:
+  inventory:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_PATH: /app/data/inventory.sqlite
+      ATTACHMENTS_DIR: /app/data/attachments
+      BACKUPS_DIR: /app/data/backups
+      AUTO_BACKUP_ENABLED: "true"
+      AUTO_BACKUP_INTERVAL_MS: "10800000"
+      AUTO_BACKUP_KEEP_DAYS: "30"
+      TRUST_PROXY: "1"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - inventory
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - inventory
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - inventory
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  inventory:

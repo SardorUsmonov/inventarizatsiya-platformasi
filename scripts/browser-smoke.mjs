@@ -198,6 +198,8 @@ try {
           "dashboard-light-mode",
           "holder-person-department-picker",
           "inventory-create-delete",
+          "inventory-qr-labels-button",
+          "inventory-qr-panel-after-create",
           "logout-confirm-cancel",
           "logout-confirm-accept",
         ],
@@ -289,6 +291,14 @@ async function runInventoryCreateSmoke(page) {
     { timeout: 10000 }
   );
 
+  const qrLabelsButtonText = await page.$eval("#printQrLabelsButton", (element) => element.textContent.trim());
+  const qrSubmitText = await page.$eval("#submitButton", (element) => element.textContent.trim());
+  const qrStatusText = await page.$eval(".wizard-qr-status", (element) => element.textContent.trim());
+
+  if (!qrLabelsButtonText.includes("QR") || !qrSubmitText.includes("QR") || !qrStatusText.includes("QR")) {
+    fail("Inventar yakuniy qadamida QR haqida aniq ko'rsatma ko'rinmadi.");
+  }
+
   const createResponse = await Promise.all([
     page.waitForResponse(
       (response) => response.url().endsWith("/api/inventory") && response.request().method() === "POST",
@@ -300,6 +310,20 @@ async function runInventoryCreateSmoke(page) {
   if (createResponse.status() !== 201) {
     fail(`Inventar UI orqali saqlanmadi: ${createResponse.status()}`);
   }
+
+  await page.waitForSelector("#inventoryDetailPanel:not(.hidden)", { timeout: 15000 });
+  await page.waitForFunction(
+    (assetTag) => {
+      const title = document.querySelector("#detailTitle")?.textContent || "";
+      const qrImage = document.querySelector("#detailQrImage");
+      const passportLink = document.querySelector("#detailQrPassportLink");
+      return title.includes(assetTag) &&
+        qrImage?.getAttribute("src")?.includes("/api/inventory/") &&
+        passportLink?.getAttribute("href")?.includes("recordId=");
+    },
+    { timeout: 10000 },
+    tag
+  );
 
   const cleanup = await page.evaluate(async (assetTag) => {
     const listResponse = await fetch(`/api/inventory?search=${encodeURIComponent(assetTag)}&pageSize=25`);

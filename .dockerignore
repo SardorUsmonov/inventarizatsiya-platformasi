@@ -4,4 +4,6 @@ data
 tests
 .git
 .gitignore
+.env
+.env.*
 coverage

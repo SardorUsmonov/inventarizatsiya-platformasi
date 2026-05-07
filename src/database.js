@@ -14,6 +14,8 @@ const AUDIT_RETENTION_OPTIONS = [30, 90, 180];
 const DEFAULT_AUDIT_RETENTION_DAYS = 90;
 const DEFAULT_AUTO_BACKUP_HOUR = 3;
 const DEFAULT_AUTO_BACKUP_KEEP_DAYS = 14;
+const DELETED_DEPARTMENT_NAMES_SETTING = "deleted_department_names";
+const DELETED_DEVICE_NAMES_SETTING = "deleted_device_names";
 const INVENTORY_CATALOGS_SYNCED_SETTING = "inventory_catalogs_synced";
 const RECOMMENDED_CATALOGS_SEEDED_SETTING = "recommended_catalogs_seeded";
 
@@ -225,6 +227,7 @@ function createDatabase(config) {
         return null;
       }
 
+      rememberDeletedCatalogName(database, DELETED_DEPARTMENT_NAMES_SETTING, existingDepartment.name);
       database.prepare("DELETE FROM departments WHERE id = ?").run(departmentId);
       return existingDepartment;
     },
@@ -261,6 +264,7 @@ function createDatabase(config) {
         return null;
       }
 
+      rememberDeletedCatalogName(database, DELETED_DEVICE_NAMES_SETTING, existingDevice.name);
       database.prepare("DELETE FROM devices WHERE id = ?").run(deviceId);
       return existingDevice;
     },
@@ -495,10 +499,218 @@ function createDatabase(config) {
         byDepartment: this.listInventoryDepartmentBreakdown(),
         byStatus: this.listInventoryStatusBreakdown(),
         latestChanges: this.listLatestInventoryChanges(),
+        qrControl: this.getQrControlOverview(),
         recentPurchases: this.listRecentInventoryPurchases(),
         stats: this.getInventoryStats(),
         upcomingWarranty: this.listUpcomingWarranty(),
       };
+    },
+    createInventoryQrScan(recordId, payload = {}) {
+      const now = getNow();
+      const result = database
+        .prepare(`
+          INSERT INTO inventory_qr_scans (
+            inventory_record_id,
+            scanned_by,
+            scanned_at,
+            ip_address,
+            user_agent,
+            source
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          recordId,
+          payload.scannedBy || null,
+          now,
+          payload.ipAddress || "",
+          normalizeText(payload.userAgent || "").slice(0, 240),
+          payload.source || "qr"
+        );
+
+      return this.getInventoryQrScanById(result.lastInsertRowid);
+    },
+    getInventoryQrScanById(scanId) {
+      return mapInventoryQrScan(
+        database
+          .prepare(`
+            SELECT
+              scans.id,
+              scans.inventory_record_id AS inventoryRecordId,
+              scans.scanned_by AS scannedBy,
+              scans.scanned_at AS scannedAt,
+              scans.ip_address AS ipAddress,
+              scans.user_agent AS userAgent,
+              scans.source,
+              users.full_name AS scannedByName,
+              users.username AS scannedByUsername,
+              inventory_records.asset_tag AS assetTag,
+              inventory_records.current_holder AS currentHolder,
+              inventory_records.department,
+              inventory_records.device_name AS deviceName,
+              inventory_records.office_location AS officeLocation,
+              inventory_records.room,
+              inventory_records.desk
+            FROM inventory_qr_scans scans
+            LEFT JOIN users ON users.id = scans.scanned_by
+            LEFT JOIN inventory_records ON inventory_records.id = scans.inventory_record_id
+            WHERE scans.id = ?
+            LIMIT 1
+          `)
+          .get(scanId)
+      );
+    },
+    getLatestInventoryQrScan(recordId) {
+      return mapInventoryQrScan(
+        database
+          .prepare(`
+            SELECT
+              scans.id,
+              scans.inventory_record_id AS inventoryRecordId,
+              scans.scanned_by AS scannedBy,
+              scans.scanned_at AS scannedAt,
+              scans.ip_address AS ipAddress,
+              scans.user_agent AS userAgent,
+              scans.source,
+              users.full_name AS scannedByName,
+              users.username AS scannedByUsername,
+              inventory_records.asset_tag AS assetTag,
+              inventory_records.current_holder AS currentHolder,
+              inventory_records.department,
+              inventory_records.device_name AS deviceName,
+              inventory_records.office_location AS officeLocation,
+              inventory_records.room,
+              inventory_records.desk
+            FROM inventory_qr_scans scans
+            LEFT JOIN users ON users.id = scans.scanned_by
+            LEFT JOIN inventory_records ON inventory_records.id = scans.inventory_record_id
+            WHERE scans.inventory_record_id = ?
+            ORDER BY scans.scanned_at DESC, scans.id DESC
+            LIMIT 1
+          `)
+          .get(recordId)
+      );
+    },
+    getQrControlOverview() {
+      const todayStart = `${getTodayIsoDate()}T00:00:00.000Z`;
+      const totalRecords = database.prepare("SELECT COUNT(*) AS total FROM inventory_records").get().total;
+      const scannedRecords = database
+        .prepare("SELECT COUNT(DISTINCT inventory_record_id) AS total FROM inventory_qr_scans")
+        .get().total;
+      const scansToday = database
+        .prepare("SELECT COUNT(*) AS total FROM inventory_qr_scans WHERE scanned_at >= ?")
+        .get(todayStart).total;
+      const lastScan = this.getLatestInventoryQrScanForAnyRecord();
+
+      return {
+        recentScans: this.listRecentInventoryQrScans(8),
+        stats: {
+          lastScanAt: lastScan?.scannedAt || "",
+          scannedRecords,
+          scansToday,
+          totalRecords,
+          unscannedRecords: Math.max(0, totalRecords - scannedRecords),
+        },
+        unscannedRecords: this.listInventoryWithoutQrScans(6),
+      };
+    },
+    getLatestInventoryQrScanForAnyRecord() {
+      return mapInventoryQrScan(
+        database
+          .prepare(`
+            SELECT
+              scans.id,
+              scans.inventory_record_id AS inventoryRecordId,
+              scans.scanned_by AS scannedBy,
+              scans.scanned_at AS scannedAt,
+              scans.ip_address AS ipAddress,
+              scans.user_agent AS userAgent,
+              scans.source,
+              users.full_name AS scannedByName,
+              users.username AS scannedByUsername,
+              inventory_records.asset_tag AS assetTag,
+              inventory_records.current_holder AS currentHolder,
+              inventory_records.department,
+              inventory_records.device_name AS deviceName,
+              inventory_records.office_location AS officeLocation,
+              inventory_records.room,
+              inventory_records.desk
+            FROM inventory_qr_scans scans
+            LEFT JOIN users ON users.id = scans.scanned_by
+            LEFT JOIN inventory_records ON inventory_records.id = scans.inventory_record_id
+            ORDER BY scans.scanned_at DESC, scans.id DESC
+            LIMIT 1
+          `)
+          .get()
+      );
+    },
+    listRecentInventoryQrScans(limit = 8) {
+      return database
+        .prepare(`
+          SELECT
+            scans.id,
+            scans.inventory_record_id AS inventoryRecordId,
+            scans.scanned_by AS scannedBy,
+            scans.scanned_at AS scannedAt,
+            scans.ip_address AS ipAddress,
+            scans.user_agent AS userAgent,
+            scans.source,
+            users.full_name AS scannedByName,
+            users.username AS scannedByUsername,
+            inventory_records.asset_tag AS assetTag,
+            inventory_records.current_holder AS currentHolder,
+            inventory_records.department,
+            inventory_records.device_name AS deviceName,
+            inventory_records.office_location AS officeLocation,
+            inventory_records.room,
+            inventory_records.desk
+          FROM inventory_qr_scans scans
+          LEFT JOIN users ON users.id = scans.scanned_by
+          LEFT JOIN inventory_records ON inventory_records.id = scans.inventory_record_id
+          ORDER BY scans.scanned_at DESC, scans.id DESC
+          LIMIT ?
+        `)
+        .all(limit)
+        .map(mapInventoryQrScan);
+    },
+    listInventoryWithoutQrScans(limit = 6) {
+      return database
+        .prepare(`
+          SELECT
+            inventory_records.id,
+            inventory_records.first_name AS firstName,
+            inventory_records.last_name AS lastName,
+            inventory_records.department,
+            inventory_records.department_id AS departmentId,
+            inventory_records.device_name AS deviceName,
+            inventory_records.device_id AS deviceId,
+            inventory_records.asset_tag AS assetTag,
+            inventory_records.serial_number AS serialNumber,
+            inventory_records.asset_status AS assetStatus,
+            inventory_records.condition_status AS conditionStatus,
+            inventory_records.purchase_date AS purchaseDate,
+            inventory_records.purchase_price AS purchasePrice,
+            inventory_records.assigned_at AS assignedAt,
+            inventory_records.warranty_until AS warrantyUntil,
+            inventory_records.supplier,
+            inventory_records.branch,
+            inventory_records.room,
+            inventory_records.desk,
+            inventory_records.office_location AS officeLocation,
+            inventory_records.accessories,
+            inventory_records.notes,
+            inventory_records.previous_holder AS previousHolder,
+            inventory_records.current_holder AS currentHolder,
+            inventory_records.created_at AS createdAt,
+            inventory_records.updated_at AS updatedAt
+          FROM inventory_records
+          LEFT JOIN inventory_qr_scans
+            ON inventory_qr_scans.inventory_record_id = inventory_records.id
+          WHERE inventory_qr_scans.id IS NULL
+          ORDER BY inventory_records.updated_at DESC, inventory_records.id DESC
+          LIMIT ?
+        `)
+        .all(limit)
+        .map(mapInventoryRecord);
     },
     getInventoryUsageByDepartmentId(departmentId) {
       const department = this.getDepartmentById(departmentId);
@@ -986,6 +1198,48 @@ function createDatabase(config) {
         .all(buildInventoryParams(filters))
         .map(mapInventoryRecord);
     },
+    listInventoryForQrLabels(filters = {}, limit = 500) {
+      const orderBy = buildInventoryOrderBy(filters);
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            branch,
+            room,
+            desk,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          ${buildInventoryWhereClause()}
+          ORDER BY ${orderBy}
+          LIMIT :limit OFFSET 0
+        `)
+        .all({
+          ...buildInventoryFilterParams(filters),
+          limit: clampInteger(limit, 500, 1, 500),
+        })
+        .map(mapInventoryRecord);
+    },
     listLatestInventoryChanges(limit = 6) {
       return database
         .prepare(`
@@ -1408,6 +1662,7 @@ function createDatabase(config) {
           backupRuns: database.prepare("SELECT * FROM backup_runs ORDER BY id ASC").all(),
           departments: database.prepare("SELECT * FROM departments ORDER BY id ASC").all(),
           devices: database.prepare("SELECT * FROM devices ORDER BY id ASC").all(),
+          qrScans: database.prepare("SELECT * FROM inventory_qr_scans ORDER BY id ASC").all(),
           inventoryRecords: database.prepare("SELECT * FROM inventory_records ORDER BY id ASC").all(),
           serviceLogs: database.prepare("SELECT * FROM inventory_service_logs ORDER BY id ASC").all(),
           systemSettings: database.prepare("SELECT * FROM system_settings ORDER BY setting_key ASC").all(),
@@ -1568,6 +1823,7 @@ function createDatabase(config) {
         database.exec(`
           DELETE FROM system_settings;
           DELETE FROM inventory_attachments;
+          DELETE FROM inventory_qr_scans;
           DELETE FROM inventory_service_logs;
           DELETE FROM inventory_transfers;
           DELETE FROM audit_logs;
@@ -1584,6 +1840,7 @@ function createDatabase(config) {
         insertMany(database, "departments", payload.data.departments || []);
         insertMany(database, "devices", payload.data.devices || []);
         insertMany(database, "inventory_records", payload.data.inventoryRecords || []);
+        insertMany(database, "inventory_qr_scans", payload.data.qrScans || []);
         insertMany(database, "inventory_service_logs", payload.data.serviceLogs || []);
         insertMany(database, "inventory_transfers", payload.data.transfers || []);
         insertMany(database, "inventory_attachments", payload.data.attachments || []);
@@ -2062,6 +2319,18 @@ function initializeDatabase(database) {
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS inventory_qr_scans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inventory_record_id INTEGER NOT NULL,
+      scanned_by INTEGER,
+      scanned_at TEXT NOT NULL,
+      ip_address TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'qr',
+      FOREIGN KEY (inventory_record_id) REFERENCES inventory_records(id) ON DELETE CASCADE,
+      FOREIGN KEY (scanned_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     CREATE TABLE IF NOT EXISTS backup_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       file_name TEXT NOT NULL,
@@ -2157,6 +2426,8 @@ function initializeDatabase(database) {
     CREATE INDEX IF NOT EXISTS idx_service_logs_record_date ON inventory_service_logs(inventory_record_id, service_date DESC);
     CREATE INDEX IF NOT EXISTS idx_transfers_record_date ON inventory_transfers(inventory_record_id, transfer_date DESC);
     CREATE INDEX IF NOT EXISTS idx_attachments_record ON inventory_attachments(inventory_record_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_qr_scans_record_date ON inventory_qr_scans(inventory_record_id, scanned_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_qr_scans_scanned_at ON inventory_qr_scans(scanned_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_entity_type ON audit_logs(entity_type, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action, created_at DESC);
@@ -2273,7 +2544,7 @@ function seedCatalogsFromInventory(database, options = {}) {
     .all();
 
   departmentNames.forEach((item) => {
-    insertDepartmentIfMissing(database, item.name);
+    insertDepartmentIfMissing(database, item.name, { respectDeletedGuard: true });
   });
 
   const deviceNames = database
@@ -2285,7 +2556,7 @@ function seedCatalogsFromInventory(database, options = {}) {
     .all();
 
   deviceNames.forEach((item) => {
-    insertDeviceIfMissing(database, item.name);
+    insertDeviceIfMissing(database, item.name, { respectDeletedGuard: true });
   });
 
   setSettingValue(database, INVENTORY_CATALOGS_SYNCED_SETTING, "true");
@@ -2313,11 +2584,11 @@ function seedRecommendedCatalogs(database, options = {}) {
   }
 
   defaultDepartments.forEach((department) => {
-    insertDepartmentIfMissing(database, department);
+    insertDepartmentIfMissing(database, department, { respectDeletedGuard: true });
   });
 
   defaultDevices.forEach((device) => {
-    insertDeviceIfMissing(database, device);
+    insertDeviceIfMissing(database, device, { respectDeletedGuard: true });
   });
 
   setSettingValue(database, RECOMMENDED_CATALOGS_SEEDED_SETTING, "true");
@@ -2454,7 +2725,7 @@ function ensureDeviceByName(database, name) {
   };
 }
 
-function insertDepartmentIfMissing(database, name) {
+function insertDepartmentIfMissing(database, name, options = {}) {
   const payload =
     typeof name === "string"
       ? {
@@ -2469,6 +2740,10 @@ function insertDepartmentIfMissing(database, name) {
           isActive: name.isActive !== false,
           name: name.name,
         };
+  if (options.respectDeletedGuard && wasCatalogNameDeleted(database, DELETED_DEPARTMENT_NAMES_SETTING, payload.name)) {
+    return;
+  }
+
   const now = getNow();
   database
     .prepare(`
@@ -2491,7 +2766,7 @@ function insertDepartmentIfMissing(database, name) {
     );
 }
 
-function insertDeviceIfMissing(database, name) {
+function insertDeviceIfMissing(database, name, options = {}) {
   const payload =
     typeof name === "string"
       ? {
@@ -2508,6 +2783,10 @@ function insertDeviceIfMissing(database, name) {
           model: name.model || "",
           name: name.name,
         };
+  if (options.respectDeletedGuard && wasCatalogNameDeleted(database, DELETED_DEVICE_NAMES_SETTING, payload.name)) {
+    return;
+  }
+
   const now = getNow();
   database
     .prepare(`
@@ -2666,6 +2945,7 @@ function buildAutoBackupSettings(database, config) {
     getSettingValue(database, "auto_backup_enabled", String(config.autoBackupEnabled)),
     config.autoBackupEnabled
   );
+  const intervalMs = normalizeAutoBackupIntervalMs(config.autoBackupIntervalMs);
   const hour = normalizeAutoBackupHour(
     getSettingValue(database, "auto_backup_hour", String(config.autoBackupHour)),
     config.autoBackupHour
@@ -2684,11 +2964,12 @@ function buildAutoBackupSettings(database, config) {
   return {
     enabled,
     hour,
+    intervalMs,
     keepDays,
     lastFileName: getSettingValue(database, "auto_backup_last_file_name", ""),
     lastRunAt,
     lastStatus,
-    scheduleLabel: `Har kuni ${String(hour).padStart(2, "0")}:00`,
+    scheduleLabel: buildAutoBackupScheduleLabel(hour, intervalMs),
   };
 }
 
@@ -2713,6 +2994,16 @@ function normalizeAutoBackupHour(value, fallbackValue = DEFAULT_AUTO_BACKUP_HOUR
   return Math.min(23, Math.max(0, parsed));
 }
 
+function normalizeAutoBackupIntervalMs(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return 0;
+  }
+
+  return parsed;
+}
+
 function normalizeAutoBackupKeepDays(value, fallbackValue = DEFAULT_AUTO_BACKUP_KEEP_DAYS) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
 
@@ -2721,6 +3012,32 @@ function normalizeAutoBackupKeepDays(value, fallbackValue = DEFAULT_AUTO_BACKUP_
   }
 
   return Math.max(1, parsed);
+}
+
+function buildAutoBackupScheduleLabel(hour, intervalMs) {
+  if (intervalMs > 0) {
+    return formatAutoBackupIntervalLabel(intervalMs);
+  }
+
+  return `Har kuni ${String(hour).padStart(2, "0")}:00`;
+}
+
+function formatAutoBackupIntervalLabel(intervalMs) {
+  if (intervalMs < 1000) {
+    return `Har ${intervalMs} millisekundda`;
+  }
+
+  const seconds = Math.round(intervalMs / 1000);
+
+  if (seconds % 3600 === 0) {
+    return `Har ${seconds / 3600} soatda`;
+  }
+
+  if (seconds % 60 === 0) {
+    return `Har ${seconds / 60} daqiqada`;
+  }
+
+  return `Har ${seconds} soniyada`;
 }
 
 function normalizeSettingBoolean(value, fallbackValue = false) {
@@ -2793,6 +3110,46 @@ function setSettingValue(database, settingKey, settingValue) {
     .run(settingKey, String(settingValue ?? ""), getNow());
 }
 
+function getDeletedCatalogNames(database, settingKey) {
+  const rawValue = getSettingValue(database, settingKey, "[]");
+
+  try {
+    const parsed = JSON.parse(rawValue);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((name) => normalizeSearch(name))
+      .filter(Boolean);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function rememberDeletedCatalogName(database, settingKey, name) {
+  const normalizedName = normalizeSearch(name);
+
+  if (!normalizedName) {
+    return;
+  }
+
+  const deletedNames = new Set(getDeletedCatalogNames(database, settingKey));
+  deletedNames.add(normalizedName);
+  setSettingValue(database, settingKey, JSON.stringify([...deletedNames].sort()));
+}
+
+function wasCatalogNameDeleted(database, settingKey, name) {
+  const normalizedName = normalizeSearch(name);
+
+  if (!normalizedName) {
+    return false;
+  }
+
+  return getDeletedCatalogNames(database, settingKey).includes(normalizedName);
+}
+
 function mapDepartment(row) {
   if (!row) {
     return null;
@@ -2837,6 +3194,28 @@ function mapInventoryRecord(row) {
     serialNumber: row.serialNumber || "",
     supplier: row.supplier || "",
     warrantyUntil: row.warrantyUntil || "",
+  };
+}
+
+function mapInventoryQrScan(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    assetTag: row.assetTag || "",
+    currentHolder: row.currentHolder || "",
+    department: row.department || "",
+    desk: row.desk || "",
+    deviceName: row.deviceName || "",
+    ipAddress: row.ipAddress || "",
+    officeLocation: row.officeLocation || "",
+    room: row.room || "",
+    scannedByName: row.scannedByName || "",
+    scannedByUsername: row.scannedByUsername || "",
+    source: row.source || "qr",
+    userAgent: row.userAgent || "",
   };
 }
 

@@ -422,6 +422,78 @@
               </div>
             </section>
 
+            <section class="panel dashboard-detail-panel dashboard-detail-panel--qr">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">QR nazorati</p>
+                  <h2>Direktor uchun skan monitoringi</h2>
+                  <p class="panel__subtext">Jihoz QR kodi skan qilinganda aktiv pasporti ochiladi va oxirgi tekshiruvlar shu yerda ko'rinadi.</p>
+                </div>
+              </div>
+
+              <div class="dashboard-cards dashboard-cards--compact">
+                <article class="dashboard-card dashboard-card--brand">
+                  <span class="dashboard-card__label">QR tayyor</span>
+                  <strong class="dashboard-card__value" id="qrReadyCount">0</strong>
+                  <span class="dashboard-card__hint">Ro'yxatdagi aktivlar uchun QR</span>
+                </article>
+                <article class="dashboard-card dashboard-card--primary">
+                  <span class="dashboard-card__label">Bugungi skanlar</span>
+                  <strong class="dashboard-card__value" id="qrTodayScanCount">0</strong>
+                  <span class="dashboard-card__hint">QR orqali ochilgan kartalar</span>
+                </article>
+                <article class="dashboard-card dashboard-card--success">
+                  <span class="dashboard-card__label">Skan qamrovi</span>
+                  <strong class="dashboard-card__value" id="qrScanCoverage">0%</strong>
+                  <span class="dashboard-card__hint">Kamida bir marta skan qilingan</span>
+                </article>
+                <article class="dashboard-card dashboard-card--warning">
+                  <span class="dashboard-card__label">Oxirgi skan</span>
+                  <strong class="dashboard-card__value dashboard-card__value--date" id="qrLastScanAt">-</strong>
+                  <span class="dashboard-card__hint">Direktor nazorati uchun vaqt belgisi</span>
+                </article>
+              </div>
+
+              <div class="dashboard-split">
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Oxirgi QR skanlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Jihoz</th>
+                          <th>Kimda</th>
+                          <th>Skan qildi</th>
+                          <th>Vaqt</th>
+                        </tr>
+                      </thead>
+                      <tbody id="qrRecentScansTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="mini-panel">
+                  <div class="mini-panel__header">
+                    <h3>Hali skan qilinmaganlar</h3>
+                  </div>
+                  <div class="table-wrap table-wrap--compact">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Jihoz</th>
+                          <th>Egasi</th>
+                          <th>Joylashuv</th>
+                        </tr>
+                      </thead>
+                      <tbody id="qrUnscannedTableBody"></tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            </section>
+
             <section class="panel dashboard-empty-state hidden" id="dashboardEmptyState">
               <div>
                 <p class="panel__eyebrow">Birinchi ishga tushirish</p>
@@ -820,6 +892,14 @@
                       </label>
                     </div>
 
+                    <section class="wizard-qr-status" aria-live="polite">
+                      <span class="wizard-qr-status__badge">QR</span>
+                      <div>
+                        <h3>QR yozuv saqlangach tayyor bo'ladi</h3>
+                        <p>Jihoz pasporti, chop etish havolasi va skan monitoringi saqlashdan keyin avtomatik ochiladi.</p>
+                      </div>
+                    </section>
+
                     <section class="wizard-review">
                       <div class="wizard-review__header">
                         <p class="panel__eyebrow">Yakuniy tekshiruv</p>
@@ -834,7 +914,7 @@
                   <button class="ghost-button" id="inventoryWizardPrevButton" type="button">Oldingi</button>
                   <button class="secondary-button" id="resetButton" type="reset">Tozalash</button>
                   <button class="secondary-button" id="inventoryWizardNextButton" type="button">Keyingi</button>
-                  <button class="primary-button hidden" id="submitButton" type="submit">Saqlash</button>
+                  <button class="primary-button hidden" id="submitButton" type="submit">Saqlash va QRni ochish</button>
                 </div>
               </form>
 
@@ -1002,6 +1082,7 @@
                     <button class="secondary-button hidden" id="importButton" type="button">Exceldan import</button>
                     <button class="secondary-button hidden" id="exportExcelButton" type="button">Excel eksport</button>
                     <button class="secondary-button hidden" id="exportCsvButton" type="button">CSV eksport</button>
+                    <button class="secondary-button" id="printQrLabelsButton" type="button">QR label chop etish</button>
                     <input class="hidden" id="importFileInput" type="file" accept=".xlsx,.xlsm,.xls">
                     <input class="hidden" id="previewImportFileInput" type="file" accept=".xlsx,.xlsm,.xls">
                   </div>
@@ -1140,7 +1221,11 @@
                       <h3>QR kartasi</h3>
                     </div>
                     <img class="qr-panel__image" id="detailQrImage" alt="Aktiv QR kodi">
-                    <a class="secondary-button qr-panel__link" id="detailQrLink" target="_blank" rel="noopener">QR ni ochish</a>
+                    <div class="qr-panel__actions">
+                      <a class="secondary-button qr-panel__link" id="detailQrLink" target="_blank" rel="noopener">QR ni ochish</a>
+                      <a class="ghost-button qr-panel__link" id="detailQrPassportLink" target="_blank" rel="noopener">Pasportni ochish</a>
+                    </div>
+                    <p class="qr-panel__meta" id="detailQrLastScan">Hali skan qilinmagan.</p>
                   </section>
                 </div>
 

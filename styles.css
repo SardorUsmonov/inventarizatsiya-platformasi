@@ -1976,6 +1976,49 @@ body[data-theme="dark"] .hero-visual {
   background: color-mix(in srgb, var(--surface-muted) 76%, transparent);
 }
 
+.wizard-qr-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--brand) 42%, var(--line));
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 18%, transparent), transparent 64%),
+    color-mix(in srgb, var(--surface-muted) 84%, transparent);
+}
+
+.wizard-qr-status__badge {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 22%, var(--surface-solid));
+  color: var(--brand-dark);
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 38%, transparent);
+}
+
+.wizard-qr-status h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.wizard-qr-status p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .wizard-review__header {
   display: grid;
   gap: 6px;
@@ -2159,6 +2202,10 @@ body[data-theme="dark"] .hero-visual {
   gap: 14px;
 }
 
+.dashboard-cards--compact {
+  margin-bottom: 16px;
+}
+
 .dashboard-card,
 .mini-panel {
   border-radius: 18px;
@@ -2217,6 +2264,11 @@ body[data-theme="dark"] .hero-visual {
 .dashboard-card__value {
   font-size: clamp(28px, 4vw, 38px);
   line-height: 1;
+}
+
+.dashboard-card__value--date {
+  font-size: clamp(16px, 2vw, 22px);
+  line-height: 1.2;
 }
 
 .dashboard-card--primary .dashboard-card__value,
@@ -3347,6 +3399,21 @@ tbody tr:last-child td {
 
 .qr-panel__link {
   text-decoration: none;
+}
+
+.qr-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.qr-panel__meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @keyframes rise-in {

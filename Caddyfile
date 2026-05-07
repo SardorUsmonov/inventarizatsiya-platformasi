@@ -1,0 +1,14 @@
+www.uninetworks.works {
+  redir https://uninetworks.works{uri} permanent
+}
+
+uninetworks.works {
+  encode zstd gzip
+  reverse_proxy inventory:3000
+
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+}

@@ -95,6 +95,7 @@ const confirmImportButton = document.querySelector("#confirmImportButton");
 const cancelImportPreviewButton = document.querySelector("#cancelImportPreviewButton");
 const exportExcelButton = document.querySelector("#exportExcelButton");
 const exportCsvButton = document.querySelector("#exportCsvButton");
+const printQrLabelsButton = document.querySelector("#printQrLabelsButton");
 const inventoryTableBody = document.querySelector("#inventoryTableBody");
 const emptyState = document.querySelector("#emptyState");
 const emptyStateText = document.querySelector("#emptyStateText");
@@ -153,6 +154,12 @@ const dashboardEmptyImportButton = document.querySelector("#dashboardEmptyImport
 const dashboardStatusList = document.querySelector("#dashboardStatusList");
 const dashboardConditionList = document.querySelector("#dashboardConditionList");
 const dashboardDepartmentList = document.querySelector("#dashboardDepartmentList");
+const qrReadyCountElement = document.querySelector("#qrReadyCount");
+const qrTodayScanCountElement = document.querySelector("#qrTodayScanCount");
+const qrScanCoverageElement = document.querySelector("#qrScanCoverage");
+const qrLastScanAtElement = document.querySelector("#qrLastScanAt");
+const qrRecentScansTableBody = document.querySelector("#qrRecentScansTableBody");
+const qrUnscannedTableBody = document.querySelector("#qrUnscannedTableBody");
 const recentPurchasesTableBody = document.querySelector("#recentPurchasesTableBody");
 const warrantyTableBody = document.querySelector("#warrantyTableBody");
 const attentionTableBody = document.querySelector("#attentionTableBody");
@@ -209,6 +216,8 @@ const detailSubtitle = document.querySelector("#detailSubtitle");
 const detailMetaList = document.querySelector("#detailMetaList");
 const detailQrImage = document.querySelector("#detailQrImage");
 const detailQrLink = document.querySelector("#detailQrLink");
+const detailQrPassportLink = document.querySelector("#detailQrPassportLink");
+const detailQrLastScan = document.querySelector("#detailQrLastScan");
 const transferTimeline = document.querySelector("#transferTimeline");
 const refreshDetailButton = document.querySelector("#refreshDetailButton");
 const detailEditButton = document.querySelector("#detailEditButton");
@@ -238,6 +247,7 @@ const attachmentList = document.querySelector("#attachmentList");
 const state = {
   activeTab: "dashboard",
   auditAutoRefreshTimerId: 0,
+  dashboardAutoRefreshTimerId: 0,
   activeCatalogPanel: "departments",
   activeInventoryPanel: "list",
   assetStatuses: [],
@@ -317,6 +327,7 @@ loginForm.addEventListener("submit", async (event) => {
     await refreshDashboardData();
     await loadInventory();
     showApp();
+    await handleQrLaunchFromUrl();
     loginForm.reset();
   } catch (error) {
     showAuthFeedback(error.message);
@@ -418,15 +429,19 @@ inventoryForm.addEventListener("submit", async (event) => {
   setInventoryBusy(true);
 
   try {
-    await request(recordId ? `/api/inventory/${recordId}` : "/api/inventory", {
+    const savedInventory = await request(recordId ? `/api/inventory/${recordId}` : "/api/inventory", {
       body: getInventoryPayload(),
       method: recordId ? "PUT" : "POST",
     });
+    const savedRecordId = savedInventory?.record?.id || parsePositiveInteger(recordId);
 
     resetInventoryForm();
     await loadInventory();
     activateInventoryPanel("list");
-    showStatus(recordId ? "Inventar yozuvi yangilandi." : "Yangi inventar yozuvi saqlandi.");
+    if (savedRecordId) {
+      await loadInventoryDetail(savedRecordId);
+    }
+    showStatus(recordId ? "Inventar yozuvi yangilandi va QR kartasi ochildi." : "Yangi inventar yozuvi saqlandi va QR kartasi ochildi.");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -515,6 +530,7 @@ downloadTemplateButton.addEventListener("click", () => window.open("/api/invento
 importButton.addEventListener("click", () => openImportPreviewPicker());
 exportExcelButton.addEventListener("click", () => downloadInventory("/api/inventory/export/xlsx"));
 exportCsvButton.addEventListener("click", () => downloadInventory("/api/inventory/export/csv"));
+printQrLabelsButton.addEventListener("click", () => openInventoryQrLabels());
 
 importFileInput.addEventListener("change", async () => {
   const file = importFileInput.files?.[0];
@@ -706,6 +722,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 initializeAuditAutoRefresh();
+initializeDashboardAutoRefresh();
 
 async function bootstrap() {
   if (window.location.protocol === "file:") {
@@ -722,6 +739,7 @@ async function bootstrap() {
     await refreshDashboardData();
     await loadInventory();
     showApp();
+    await handleQrLaunchFromUrl();
   } catch (error) {
     showAuth();
 
@@ -738,6 +756,37 @@ async function reloadSessionAndDashboard() {
   applySession(session);
   await refreshDashboardData();
   await loadInventory({ silent: true });
+}
+
+async function handleQrLaunchFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const recordId = parsePositiveInteger(params.get("recordId"));
+
+  if (!recordId) {
+    return;
+  }
+
+  try {
+    await request(`/api/inventory/${recordId}/qr-scan`, {
+      method: "POST",
+    });
+    await refreshDashboardData();
+    await loadInventory({ silent: true });
+    activateTab("inventory");
+    await loadInventoryDetail(recordId);
+    showStatus("QR skan qayd etildi va aktiv pasporti ochildi.");
+    clearQrLaunchParams();
+  } catch (error) {
+    showStatus(`QR skan ochilmadi: ${error.message}`, "error");
+  }
+}
+
+function clearQrLaunchParams() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("qr");
+  url.searchParams.delete("assetTag");
+  url.searchParams.delete("recordId");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 async function refreshDashboardData() {
@@ -1079,6 +1128,7 @@ function renderInventory(records, stats) {
     actionsCell.textContent = "";
     const actions = document.createElement("div");
     actions.className = "row-actions";
+    actions.appendChild(createRowButton("QR", () => openInventoryQr(record.id)));
     actions.appendChild(createRowButton("Ko'rish", () => loadInventoryDetail(record.id).catch(handleError)));
 
     if (state.permissions.manageInventory) {
@@ -1123,6 +1173,7 @@ function renderDashboard(overview) {
   renderBreakdownList(dashboardStatusList, overview?.byStatus || [], getAssetStatusLabel, getAssetStatusTone);
   renderBreakdownList(dashboardConditionList, overview?.byCondition || [], getConditionStatusLabel, getConditionStatusTone);
   renderBreakdownList(dashboardDepartmentList, overview?.byDepartment || [], localizeDepartmentName);
+  renderQrControl(overview?.qrControl || null);
 
   renderDashboardTable(recentPurchasesTableBody, overview?.recentPurchases || [], (record, row) => {
     appendCell(row, "Texnika", record.deviceName);
@@ -1737,13 +1788,50 @@ function renderBreakdownList(container, items, labelFormatter, colorResolver = n
   });
 }
 
-function renderDashboardTable(container, items, renderRow) {
+function renderQrControl(qrControl) {
+  const stats = qrControl?.stats || {};
+  const totalRecords = Number(stats.totalRecords || 0);
+  const scannedRecords = Number(stats.scannedRecords || 0);
+  const scansToday = Number(stats.scansToday || 0);
+
+  qrReadyCountElement.textContent = totalRecords;
+  qrTodayScanCountElement.textContent = scansToday;
+  qrScanCoverageElement.textContent = formatPercent(scannedRecords, totalRecords);
+  qrLastScanAtElement.textContent = stats.lastScanAt ? formatDate(stats.lastScanAt) : "-";
+
+  renderDashboardTable(qrRecentScansTableBody, qrControl?.recentScans || [], (scan, row) => {
+    appendCell(row, "Jihoz", formatInventoryIdentity(scan));
+    appendCell(row, "Kimda", scan.currentHolder || "-");
+    appendCell(row, "Skan qildi", scan.scannedByName || scan.scannedByUsername || "-");
+    appendCell(row, "Vaqt", formatDate(scan.scannedAt));
+  }, 4);
+
+  renderDashboardTable(qrUnscannedTableBody, qrControl?.unscannedRecords || [], (record, row) => {
+    appendCell(row, "Jihoz", formatInventoryIdentity(record));
+    appendCell(row, "Egasi", record.currentHolder || "-");
+    appendCell(row, "Joylashuv", formatRecordLocation(record));
+  });
+}
+
+function formatInventoryIdentity(item) {
+  const deviceName = item.deviceName || "Jihoz";
+  return item.assetTag ? `${item.assetTag} · ${deviceName}` : deviceName;
+}
+
+function formatRecordLocation(record) {
+  return record.officeLocation
+    || [record.branch, record.room, record.desk].filter(Boolean).join(" / ")
+    || localizeDepartmentName(record.department)
+    || "-";
+}
+
+function renderDashboardTable(container, items, renderRow, colSpan = 3) {
   container.innerHTML = "";
 
   if (!items.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 3;
+    cell.colSpan = colSpan;
     cell.textContent = "Hozircha ma'lumot mavjud emas.";
     row.appendChild(cell);
     container.appendChild(row);
@@ -1915,6 +2003,10 @@ function renderInventoryDetail(detail) {
   detailSubtitle.textContent = `${record.currentHolder || "Egasi ko'rsatilmagan"} · ${localizeDepartmentName(record.department)} · ${getAssetStatusLabel(record.assetStatus)}`;
   detailQrImage.src = detail.qrUrl;
   detailQrLink.href = detail.qrUrl;
+  detailQrPassportLink.href = detail.qrScanUrl || detail.qrUrl;
+  detailQrLastScan.textContent = detail.qrLastScan
+    ? `Oxirgi skan: ${formatDate(detail.qrLastScan.scannedAt)} · ${detail.qrLastScan.scannedByName || detail.qrLastScan.scannedByUsername || "Noma'lum"}`
+    : "Hali skan qilinmagan.";
 
   renderDetailList(detailMetaList, [
     ["Inventar raqam", record.assetTag || "-"],
@@ -2422,6 +2514,10 @@ function setInventoryWizardStep(stepIndex) {
   syncInventoryWizardUI();
 }
 
+function getInventorySubmitIdleLabel() {
+  return recordIdInput.value ? "Yangilash va QRni ochish" : "Saqlash va QRni ochish";
+}
+
 function syncInventoryWizardUI() {
   const step = INVENTORY_WIZARD_STEPS[state.inventoryWizardStep] || INVENTORY_WIZARD_STEPS[0];
   const isLastStep = state.inventoryWizardStep === INVENTORY_WIZARD_STEPS.length - 1;
@@ -2748,7 +2844,7 @@ function fillInventoryForm(record) {
   previousHolderInput.value = record.previousHolder === "-" ? "" : record.previousHolder;
   currentHolderInput.value = record.currentHolder;
   notesInput.value = record.notes || "";
-  submitButton.textContent = "Yangilash";
+  submitButton.textContent = getInventorySubmitIdleLabel();
   cancelEditButton.classList.remove("hidden");
   setInventoryWizardStep(0);
 }
@@ -2798,7 +2894,7 @@ function applyInventoryFormDefaults() {
   recordIdInput.value = "";
   assetStatusSelect.value = state.assetStatuses[0]?.value || "";
   conditionStatusSelect.value = state.conditionStatuses[0]?.value || "";
-  submitButton.textContent = "Saqlash";
+  submitButton.textContent = getInventorySubmitIdleLabel();
   cancelEditButton.classList.add("hidden");
   setInventoryWizardStep(0);
 }
@@ -3253,6 +3349,7 @@ function formatAuditActionLabel(value) {
     "inventory.transfer": "Aktiv transfer qilindi",
     "inventory.service_log_create": "Servis yozuvi qo'shildi",
     "inventory.attachment_create": "Fayl qo'shildi",
+    "inventory.qr_scan": "QR orqali ko'rildi",
     "inventory.import": "Inventar import qilindi",
     "catalog.department_create": "Bo'lim qo'shildi",
     "catalog.department_update": "Bo'lim yangilandi",
@@ -3349,7 +3446,7 @@ function setInventoryBusy(isBusy) {
   inventoryWizardSteps.forEach((button) => {
     button.disabled = isBusy;
   });
-  submitButton.textContent = isBusy ? "Saqlanmoqda..." : recordIdInput.value ? "Yangilash" : "Saqlash";
+  submitButton.textContent = isBusy ? "Saqlanmoqda..." : getInventorySubmitIdleLabel();
 }
 
 async function request(url, options = {}) {
@@ -3396,6 +3493,21 @@ function initializeAuditAutoRefresh() {
   }, (Number(state.auditSettings?.autoRefreshSeconds || 30) || 30) * 1000);
 }
 
+function initializeDashboardAutoRefresh() {
+  if (state.dashboardAutoRefreshTimerId) {
+    return;
+  }
+
+  state.dashboardAutoRefreshTimerId = window.setInterval(() => {
+    if (document.hidden || state.activeTab !== "dashboard" || !state.user) {
+      return;
+    }
+
+    refreshDashboardData().catch(() => {
+    });
+  }, 30000);
+}
+
 function downloadBlob(content, fileName, type) {
   const blob = content instanceof Blob ? content : new Blob([content], { type });
   const url = window.URL.createObjectURL(blob);
@@ -3408,7 +3520,7 @@ function downloadBlob(content, fileName, type) {
   window.URL.revokeObjectURL(url);
 }
 
-function downloadInventory(pathname) {
+function buildInventoryFilterUrl(pathname) {
   const url = new URL(pathname, window.location.origin);
 
   if (searchInput.value.trim()) {
@@ -3431,7 +3543,26 @@ function downloadInventory(pathname) {
     url.searchParams.set("conditionStatus", filterConditionStatusSelect.value);
   }
 
+  return url;
+}
+
+function downloadInventory(pathname) {
+  const url = buildInventoryFilterUrl(pathname);
+
   window.open(url.toString(), "_blank", "noopener");
+}
+
+function openInventoryQrLabels() {
+  const url = buildInventoryFilterUrl("/api/inventory/qr-labels");
+  window.open(url.toString(), "_blank", "noopener");
+}
+
+function openInventoryQr(recordId) {
+  if (!recordId) {
+    return;
+  }
+
+  window.open(`/api/inventory/${recordId}/qr.svg`, "_blank", "noopener");
 }
 
 function formatDate(value) {

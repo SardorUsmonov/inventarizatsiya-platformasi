@@ -627,6 +627,8 @@ app.get("/api/inventory/:id/detail", requirePermission("viewInventory"), (reques
 
   response.json({
     attachments: database.listAttachments(recordId),
+    qrLastScan: database.getLatestInventoryQrScan(recordId),
+    qrScanUrl: buildQrValue(record, request),
     qrUrl: `/api/inventory/${recordId}/qr.svg`,
     record,
     serviceLogs: database.listServiceLogs(recordId),
@@ -652,6 +654,47 @@ app.get("/api/inventory/:id/qr.svg", requirePermission("viewInventory"), async (
 
   response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
   response.send(svg);
+});
+
+app.post("/api/inventory/:id/qr-scan", requirePermission("viewInventory"), (request, response) => {
+  const recordId = parsePositiveInteger(request.params.id);
+  const record = recordId ? database.getInventoryById(recordId) : null;
+
+  if (!record) {
+    response.status(404).json({
+      message: "Yozuv topilmadi.",
+    });
+    return;
+  }
+
+  const scan = database.createInventoryQrScan(recordId, {
+    ipAddress: request.ip,
+    scannedBy: request.user.id,
+    source: "qr",
+    userAgent: request.get("user-agent") || "",
+  });
+
+  database.logAudit({
+    action: "inventory.qr_scan",
+    actorName: request.user.fullName,
+    actorRole: request.user.role,
+    actorUserId: request.user.id,
+    actorUsername: request.user.username,
+    details: {
+      assetTag: record.assetTag,
+      deviceName: record.deviceName,
+      scanId: scan.id,
+    },
+    entityId: recordId,
+    entityType: "inventory",
+    ipAddress: request.ip,
+    summary: `${record.assetTag || record.deviceName} QR orqali ko'rildi.`,
+  });
+
+  response.status(201).json({
+    record,
+    scan,
+  });
 });
 
 app.get("/api/inventory/:id/transfers", requirePermission("viewInventory"), (request, response) => {
@@ -878,6 +921,15 @@ app.get("/api/inventory/export/xlsx", requirePermission("exportInventory"), asyn
   );
   response.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   response.send(workbook);
+});
+
+app.get("/api/inventory/qr-labels", requirePermission("viewInventory"), (request, response) => {
+  const filters = getInventoryFilters(request.query);
+  const limit = Math.min(parsePositiveInteger(request.query.limit) || 500, 500);
+  const records = database.listInventoryForQrLabels(filters, limit);
+
+  response.setHeader("Content-Type", "text/html; charset=utf-8");
+  response.send(buildQrLabelsHtml(records, request));
 });
 
 app.get("/api/inventory/template", requirePermission("importInventory"), async (_request, response) => {
@@ -2437,7 +2489,72 @@ function sanitizeFileName(value) {
 function buildQrValue(record, request) {
   const baseUrl = config.appBaseUrl || `${request.protocol}://${request.get("host")}`;
 
-  return `${baseUrl}/?assetTag=${encodeURIComponent(record.assetTag || record.deviceName)}&recordId=${record.id}`;
+  return `${baseUrl}/?qr=1&assetTag=${encodeURIComponent(record.assetTag || record.deviceName)}&recordId=${record.id}`;
+}
+
+function buildQrLabelsHtml(records, request) {
+  const cards = records.length
+    ? records
+      .map((record) => {
+        const title = record.assetTag || `ID-${record.id}`;
+        const owner = record.currentHolder || [record.firstName, record.lastName].filter(Boolean).join(" ") || "-";
+        const location = record.officeLocation || [record.branch, record.room, record.desk].filter(Boolean).join(" / ") || record.department || "-";
+        const qrPath = `/api/inventory/${record.id}/qr.svg`;
+
+        return `
+          <article class="qr-card">
+            <img src="${escapeHtml(qrPath)}" alt="${escapeHtml(title)} QR kodi">
+            <div class="qr-card__body">
+              <strong>${escapeHtml(title)}</strong>
+              <span>${escapeHtml(record.deviceName || "Jihoz")}</span>
+              <small>Egasi: ${escapeHtml(owner)}</small>
+              <small>Joylashuv: ${escapeHtml(location)}</small>
+              <small class="qr-card__url">${escapeHtml(buildQrValue(record, request))}</small>
+            </div>
+          </article>`;
+      })
+      .join("")
+    : `<div class="empty">QR chiqarish uchun mos aktiv topilmadi.</div>`;
+
+  return `<!doctype html>
+  <html lang="uz">
+  <head>
+    <meta charset="utf-8">
+    <title>Inventar QR label</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 24px; color: #111827; font-family: Arial, sans-serif; background: #f8fafc; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
+      h1 { margin: 0 0 6px; font-size: 24px; }
+      p { margin: 0; color: #64748b; }
+      .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+      .qr-card { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; min-height: 146px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; break-inside: avoid; page-break-inside: avoid; }
+      .qr-card img { width: 112px; height: 112px; object-fit: contain; }
+      .qr-card__body { display: grid; align-content: start; gap: 5px; min-width: 0; }
+      .qr-card strong { font-size: 18px; }
+      .qr-card span { font-size: 14px; font-weight: 700; }
+      .qr-card small { color: #475569; font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+      .qr-card__url { color: #94a3b8; }
+      .empty { padding: 24px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #fff; color: #64748b; }
+      @media print {
+        body { padding: 10mm; background: #fff; }
+        header { margin-bottom: 8mm; }
+        .sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6mm; }
+        .qr-card { border-color: #111827; border-radius: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Inventar QR label</h1>
+        <p>${escapeHtml(String(records.length))} ta aktiv uchun QR. Chop etish uchun brauzerning Print oynasidan foydalaning.</p>
+      </div>
+      <p>${escapeHtml(new Date().toISOString().slice(0, 10))}</p>
+    </header>
+    <main class="sheet">${cards}</main>
+  </body>
+  </html>`;
 }
 
 function buildPrintableReport(summary) {
@@ -2679,7 +2796,7 @@ async function runAutomaticBackup() {
   try {
     const backup = writeBackupSnapshot({
       prefix: "inventory-backup-auto",
-      summary: "Avtomatik kunlik zaxira nusxasi yaratildi.",
+      summary: "Avtomatik zaxira nusxasi yaratildi.",
     });
     const statusText = backup.prunedFiles
       ? `Muvaffaqiyatli, ${backup.prunedFiles} ta eski backup tozalandi.`

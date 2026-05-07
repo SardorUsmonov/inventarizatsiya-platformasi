@@ -117,6 +117,40 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(refreshedDashboard.payload.overview.stats.inUseCount, 1);
   assert.equal(refreshedDashboard.payload.overview.stats.purchasedThisYearCount, 1);
   assert.equal(refreshedDashboard.payload.overview.recentPurchases[0].assetTag, "NB-5520-01");
+  assert.equal(refreshedDashboard.payload.overview.qrControl.stats.totalRecords, 1);
+  assert.equal(refreshedDashboard.payload.overview.qrControl.stats.scannedRecords, 0);
+
+  const detail = await admin.request(`/api/inventory/${record.payload.record.id}/detail`);
+  assert.equal(detail.response.status, 200);
+  assert.equal(detail.payload.qrLastScan, null);
+  assert.match(detail.payload.qrScanUrl, /recordId=1|recordId=\d+/);
+  assert.match(detail.payload.qrScanUrl, /qr=1/);
+
+  const qrSvg = await admin.request(`/api/inventory/${record.payload.record.id}/qr.svg`);
+  assert.equal(qrSvg.response.status, 200);
+  assert.match(qrSvg.text, /<svg/);
+
+  const qrLabels = await admin.request("/api/inventory/qr-labels?search=NB-5520-01");
+  assert.equal(qrLabels.response.status, 200);
+  assert.match(qrLabels.text, /Inventar QR label/);
+  assert.match(qrLabels.text, /NB-5520-01/);
+  assert.match(qrLabels.text, new RegExp(`/api/inventory/${record.payload.record.id}/qr\\.svg`));
+
+  const qrScan = await admin.request(`/api/inventory/${record.payload.record.id}/qr-scan`, {
+    method: "POST",
+  });
+  assert.equal(qrScan.response.status, 201);
+  assert.equal(qrScan.payload.scan.inventoryRecordId, record.payload.record.id);
+  assert.equal(qrScan.payload.scan.assetTag, "NB-5520-01");
+
+  const scannedDashboard = await admin.request("/api/dashboard");
+  assert.equal(scannedDashboard.payload.overview.qrControl.stats.scannedRecords, 1);
+  assert.equal(scannedDashboard.payload.overview.qrControl.stats.unscannedRecords, 0);
+  assert.equal(scannedDashboard.payload.overview.qrControl.recentScans[0].assetTag, "NB-5520-01");
+
+  const scannedDetail = await admin.request(`/api/inventory/${record.payload.record.id}/detail`);
+  assert.ok(scannedDetail.payload.qrLastScan.scannedAt);
+  assert.equal(scannedDetail.payload.qrLastScan.scannedByUsername, "admin");
 
   const csvExport = await admin.request("/api/inventory/export/csv");
   assert.equal(csvExport.response.status, 200);
@@ -323,6 +357,17 @@ test("deleted recommended catalogs stay removed after restart", { concurrency: f
   });
   assert.equal(deletedDevice.response.status, 204);
 
+  const catalogGuardDatabase = new DatabaseSync(databasePath);
+  const deletedDepartmentsSetting = catalogGuardDatabase
+    .prepare("SELECT setting_value AS value FROM system_settings WHERE setting_key = 'deleted_department_names'")
+    .get();
+  const deletedDevicesSetting = catalogGuardDatabase
+    .prepare("SELECT setting_value AS value FROM system_settings WHERE setting_key = 'deleted_device_names'")
+    .get();
+  catalogGuardDatabase.close();
+  assert.ok(JSON.parse(deletedDepartmentsSetting.value).includes("devops & sre"));
+  assert.ok(JSON.parse(deletedDevicesSetting.value).includes("dell latitude 7440"));
+
   await restartServer();
 
   const restartedAdmin = createClient();
@@ -377,6 +422,15 @@ test("legacy inventory names do not recreate deleted catalogs on restart", { con
   const dashboard = await admin.request("/api/dashboard");
   assert.ok(!dashboard.payload.departments.some((item) => item.name === legacyDepartmentName));
   assert.ok(!dashboard.payload.devices.some((item) => item.name === legacyDeviceName));
+
+  const legacyQrSvg = await admin.request(`/api/inventory/${legacyRecordId}/qr.svg`);
+  assert.equal(legacyQrSvg.response.status, 200);
+  assert.match(legacyQrSvg.text, /<svg/);
+
+  const legacyQrLabels = await admin.request(`/api/inventory/qr-labels?search=${encodeURIComponent(legacyDepartmentName)}`);
+  assert.equal(legacyQrLabels.response.status, 200);
+  assert.match(legacyQrLabels.text, /Legacy Ghost Device/);
+  assert.match(legacyQrLabels.text, new RegExp(`/api/inventory/${legacyRecordId}/qr\\.svg`));
 
   const cleanupDatabase = new DatabaseSync(databasePath);
   cleanupDatabase.prepare("DELETE FROM inventory_records WHERE id = ?").run(legacyRecordId);
@@ -880,8 +934,9 @@ test("automatic backup scheduler creates backup files and metrics", { concurrenc
     const metrics = await autoClient.request("/api/system/metrics");
     assert.equal(metrics.response.status, 200);
     assert.equal(metrics.payload.metrics.autoBackup.enabled, true);
+    assert.equal(metrics.payload.metrics.autoBackup.intervalMs, 750);
     assert.equal(metrics.payload.metrics.autoBackup.keepDays, 7);
-    assert.match(metrics.payload.metrics.autoBackup.scheduleLabel, /Har kuni/);
+    assert.equal(metrics.payload.metrics.autoBackup.scheduleLabel, "Har 750 millisekundda");
     assert.ok(metrics.payload.metrics.autoBackup.lastRunAt);
     assert.match(metrics.payload.metrics.autoBackup.lastStatus, /Muvaffaqiyatli/);
     assert.ok(metrics.payload.metrics.backupCount >= 1);
