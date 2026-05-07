@@ -325,6 +325,28 @@ async function runInventoryCreateSmoke(page) {
     tag
   );
 
+  await page.click('[data-tab-target="dashboard"]');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-tab-target="dashboard"]')?.classList.contains("is-active") &&
+      Number(document.querySelector("#qrReadyCount")?.textContent || "0") > 0,
+    { timeout: 10000 }
+  );
+
+  const qrPanelLayout = await page.evaluate(() => {
+    const panel = document.querySelector(".dashboard-detail-panel--qr");
+    const cards = [...document.querySelectorAll(".dashboard-detail-panel--qr .dashboard-card")];
+    const rect = panel?.getBoundingClientRect();
+    return {
+      cardWidths: cards.map((card) => Math.round(card.getBoundingClientRect().width)),
+      panelWidth: rect ? Math.round(rect.width) : 0,
+    };
+  });
+
+  if (!isMobileViewport && (qrPanelLayout.panelWidth < 320 || qrPanelLayout.cardWidths.some((width) => width < 120))) {
+    fail(`QR monitoring paneli siqilib qoldi: ${JSON.stringify(qrPanelLayout)}`);
+  }
+
   const cleanup = await page.evaluate(async (assetTag) => {
     const listResponse = await fetch(`/api/inventory?search=${encodeURIComponent(assetTag)}&pageSize=25`);
     const payload = await listResponse.json();

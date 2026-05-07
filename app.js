@@ -55,6 +55,7 @@ const inventoryWizardReviewElement = document.querySelector("#inventoryWizardRev
 const submitButton = document.querySelector("#submitButton");
 const resetButton = document.querySelector("#resetButton");
 const cancelEditButton = document.querySelector("#cancelEditButton");
+const editQrButton = document.querySelector("#editQrButton");
 const quickCatalogPanel = document.querySelector("#quickCatalogPanel");
 const openQuickDepartmentButton = document.querySelector("#openQuickDepartmentButton");
 const openQuickDeviceButton = document.querySelector("#openQuickDeviceButton");
@@ -454,6 +455,16 @@ inventoryForm.addEventListener("reset", () => {
 });
 
 cancelEditButton.addEventListener("click", resetInventoryForm);
+editQrButton.addEventListener("click", () => {
+  const recordId = parsePositiveInteger(recordIdInput.value);
+
+  if (!recordId) {
+    return;
+  }
+
+  openInventoryQr(recordId);
+  showStatus("Mavjud yozuv uchun QR ochildi. Tahrirdagi ma'lumotlar saqlansa QR pasporti ham yangilanadi.");
+});
 openFullCatalogButton.addEventListener("click", () => activateTab("catalogs"));
 openQuickDepartmentButton.addEventListener("click", () => showQuickCatalogForm("department"));
 openQuickDeviceButton.addEventListener("click", () => showQuickCatalogForm("device"));
@@ -2846,6 +2857,7 @@ function fillInventoryForm(record) {
   notesInput.value = record.notes || "";
   submitButton.textContent = getInventorySubmitIdleLabel();
   cancelEditButton.classList.remove("hidden");
+  editQrButton.classList.remove("hidden");
   setInventoryWizardStep(0);
 }
 
@@ -2896,6 +2908,7 @@ function applyInventoryFormDefaults() {
   conditionStatusSelect.value = state.conditionStatuses[0]?.value || "";
   submitButton.textContent = getInventorySubmitIdleLabel();
   cancelEditButton.classList.add("hidden");
+  editQrButton.classList.add("hidden");
   setInventoryWizardStep(0);
 }
 
@@ -3441,6 +3454,7 @@ function setInventoryBusy(isBusy) {
   submitButton.disabled = isBusy;
   resetButton.disabled = isBusy;
   cancelEditButton.disabled = isBusy;
+  editQrButton.disabled = isBusy;
   inventoryWizardPrevButton.disabled = isBusy || state.inventoryWizardStep === 0;
   inventoryWizardNextButton.disabled = isBusy;
   inventoryWizardSteps.forEach((button) => {

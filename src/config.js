@@ -6,7 +6,7 @@ const rawTrustProxy = process.env.TRUST_PROXY;
 module.exports = {
   autoBackupEnabled: parseBoolean(process.env.AUTO_BACKUP_ENABLED, true),
   autoBackupHour: clampInteger(process.env.AUTO_BACKUP_HOUR, 3, 0, 23),
-  autoBackupIntervalMs: clampInteger(process.env.AUTO_BACKUP_INTERVAL_MS, 0, 0),
+  autoBackupIntervalMs: clampInteger(process.env.AUTO_BACKUP_INTERVAL_MS, 1000 * 60 * 60 * 3, 0),
   autoBackupKeepDays: clampInteger(process.env.AUTO_BACKUP_KEEP_DAYS, 14, 1),
   appBaseUrl: process.env.APP_BASE_URL || "",
   attachmentsDir: process.env.ATTACHMENTS_DIR || path.join(rootDir, "data", "attachments"),

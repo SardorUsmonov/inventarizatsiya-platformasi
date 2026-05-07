@@ -330,6 +330,69 @@ test("admin can manage catalogs, inventory, export and audit", { concurrency: fa
   assert.equal(deletedDevice.response.status, 204);
 });
 
+test("inventory export includes records beyond the default page", { concurrency: false }, async () => {
+  const now = new Date().toISOString();
+  const database = new DatabaseSync(databasePath);
+  const insertRecord = database.prepare(`
+    INSERT INTO inventory_records (
+      first_name,
+      last_name,
+      department,
+      device_name,
+      asset_tag,
+      serial_number,
+      asset_status,
+      condition_status,
+      current_holder,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (let index = 1; index <= 105; index += 1) {
+    const paddedIndex = String(index).padStart(3, "0");
+    insertRecord.run(
+      "Export",
+      `User ${paddedIndex}`,
+      "Export QA",
+      "Export Test Device",
+      `EXP-${paddedIndex}`,
+      `SER-EXP-${paddedIndex}`,
+      "in_use",
+      "good",
+      `Export User ${paddedIndex}`,
+      now,
+      now
+    );
+  }
+  database.close();
+
+  const admin = createClient();
+  await admin.request("/api/auth/login", {
+    body: {
+      password: "Admin123!",
+      username: "admin",
+    },
+    method: "POST",
+  });
+
+  const csvExport = await admin.request("/api/inventory/export/csv?sortBy=assetTag&sortDir=asc");
+  assert.equal(csvExport.response.status, 200);
+  assert.match(csvExport.text, /EXP-001/);
+  assert.match(csvExport.text, /EXP-105/);
+
+  const xlsxExport = await admin.request("/api/inventory/export/xlsx?sortBy=assetTag&sortDir=asc");
+  assert.equal(xlsxExport.response.status, 200);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(xlsxExport.buffer);
+  assert.equal(workbook.worksheets[0].rowCount, 106);
+
+  const cleanupDatabase = new DatabaseSync(databasePath);
+  cleanupDatabase.prepare("DELETE FROM inventory_records WHERE asset_tag LIKE 'EXP-%'").run();
+  cleanupDatabase.close();
+});
+
 test("deleted recommended catalogs stay removed after restart", { concurrency: false }, async () => {
   const admin = createClient();
   await admin.request("/api/auth/login", {

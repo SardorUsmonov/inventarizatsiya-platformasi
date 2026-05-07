@@ -2434,6 +2434,18 @@ body[data-theme="dark"] .hero-visual {
   grid-column: span 4;
 }
 
+#tabDashboard .dashboard-detail-panel--qr {
+  grid-column: span 4;
+}
+
+#tabDashboard .dashboard-detail-panel--qr .dashboard-cards--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#tabDashboard .dashboard-detail-panel--qr .dashboard-split {
+  grid-template-columns: 1fr;
+}
+
 #tabDashboard .dashboard-detail-panel--operations,
 #tabDashboard .dashboard-detail-panel--attention {
   grid-column: span 6;

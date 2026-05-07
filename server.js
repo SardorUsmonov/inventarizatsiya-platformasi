@@ -901,7 +901,7 @@ app.post(
 
 app.get("/api/inventory/export/csv", requirePermission("exportInventory"), (request, response) => {
   const filters = getInventoryFilters(request.query);
-  const records = database.listInventory(filters);
+  const records = database.listInventoryForExport(filters);
   const fileName = `inventar-${new Date().toISOString().slice(0, 10)}.csv`;
 
   response.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -911,7 +911,7 @@ app.get("/api/inventory/export/csv", requirePermission("exportInventory"), (requ
 
 app.get("/api/inventory/export/xlsx", requirePermission("exportInventory"), async (request, response) => {
   const filters = getInventoryFilters(request.query);
-  const records = database.listInventory(filters);
+  const records = database.listInventoryForExport(filters);
   const fileName = `inventar-${new Date().toISOString().slice(0, 10)}.xlsx`;
   const workbook = await createInventoryWorkbook(records);
 

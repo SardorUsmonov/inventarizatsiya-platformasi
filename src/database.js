@@ -1198,6 +1198,48 @@ function createDatabase(config) {
         .all(buildInventoryParams(filters))
         .map(mapInventoryRecord);
     },
+    listInventoryForExport(filters = {}, limit = 10000) {
+      const orderBy = buildInventoryOrderBy(filters);
+      return database
+        .prepare(`
+          SELECT
+            id,
+            first_name AS firstName,
+            last_name AS lastName,
+            department,
+            department_id AS departmentId,
+            device_name AS deviceName,
+            device_id AS deviceId,
+            asset_tag AS assetTag,
+            serial_number AS serialNumber,
+            asset_status AS assetStatus,
+            condition_status AS conditionStatus,
+            purchase_date AS purchaseDate,
+            purchase_price AS purchasePrice,
+            assigned_at AS assignedAt,
+            warranty_until AS warrantyUntil,
+            supplier,
+            branch,
+            room,
+            desk,
+            office_location AS officeLocation,
+            accessories,
+            notes,
+            previous_holder AS previousHolder,
+            current_holder AS currentHolder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM inventory_records
+          ${buildInventoryWhereClause()}
+          ORDER BY ${orderBy}
+          LIMIT :limit OFFSET 0
+        `)
+        .all({
+          ...buildInventoryFilterParams(filters),
+          limit: clampInteger(limit, 10000, 1, 10000),
+        })
+        .map(mapInventoryRecord);
+    },
     listInventoryForQrLabels(filters = {}, limit = 500) {
       const orderBy = buildInventoryOrderBy(filters);
       return database
