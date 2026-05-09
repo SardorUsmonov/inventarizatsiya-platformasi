@@ -218,6 +218,7 @@ const inventoryDetailPanel = document.querySelector("#inventoryDetailPanel");
 const detailTitle = document.querySelector("#detailTitle");
 const detailSubtitle = document.querySelector("#detailSubtitle");
 const detailMetaList = document.querySelector("#detailMetaList");
+const detailQrPanel = document.querySelector("#detailQrPanel");
 const detailQrImage = document.querySelector("#detailQrImage");
 const detailQrLink = document.querySelector("#detailQrLink");
 const detailQrPassportLink = document.querySelector("#detailQrPassportLink");
@@ -2020,12 +2021,12 @@ function renderInventoryDetail(detail) {
   const record = detail.record;
   detailTitle.textContent = `${record.assetTag || "Inventar raqamsiz"} · ${record.deviceName}`;
   detailSubtitle.textContent = `${record.currentHolder || "Egasi ko'rsatilmagan"} · ${localizeDepartmentName(record.department)} · ${getAssetStatusLabel(record.assetStatus)}`;
-  detailQrImage.src = detail.qrUrl;
-  detailQrLink.href = detail.qrUrl;
-  detailQrPassportLink.href = detail.qrScanUrl || detail.qrUrl;
-  detailQrLastScan.textContent = detail.qrLastScan
-    ? `Oxirgi skan: ${formatDate(detail.qrLastScan.scannedAt)} · ${detail.qrLastScan.scannedByName || detail.qrLastScan.scannedByUsername || "Noma'lum"}`
-    : "Hali skan qilinmagan.";
+  renderDetailQrCard(detail);
+  if (String(detail?.qrUrl || "").trim()) {
+    detailQrLastScan.textContent = detail.qrLastScan
+      ? `Oxirgi skan: ${formatDate(detail.qrLastScan.scannedAt)} · ${detail.qrLastScan.scannedByName || detail.qrLastScan.scannedByUsername || "Noma'lum"}`
+      : "Hali skan qilinmagan.";
+  }
 
   renderDetailList(detailMetaList, [
     ["Inventar raqam", record.assetTag || "-"],
@@ -2046,6 +2047,25 @@ function renderInventoryDetail(detail) {
   renderServiceLogs(detail.serviceLogs || []);
   renderAttachments(detail.attachments || []);
   transferForm.classList.add("hidden");
+}
+
+function renderDetailQrCard(detail) {
+  const qrUrl = String(detail?.qrUrl || "").trim();
+  const qrScanUrl = String(detail?.qrScanUrl || "").trim();
+
+  if (!qrUrl) {
+    detailQrPanel.classList.add("hidden");
+    detailQrImage.removeAttribute("src");
+    detailQrLink.removeAttribute("href");
+    detailQrPassportLink.removeAttribute("href");
+    detailQrLastScan.textContent = "";
+    return;
+  }
+
+  detailQrPanel.classList.remove("hidden");
+  detailQrImage.src = qrUrl;
+  detailQrLink.href = qrUrl;
+  detailQrPassportLink.href = qrScanUrl || qrUrl;
 }
 
 function renderDetailList(container, rows) {
