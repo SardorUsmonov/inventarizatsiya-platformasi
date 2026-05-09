@@ -424,10 +424,21 @@
 
             <section class="panel dashboard-detail-panel dashboard-detail-panel--qr">
               <div class="panel__header">
-                <div>
-                  <p class="panel__eyebrow">QR nazorati</p>
-                  <h2>Direktor uchun skan monitoringi</h2>
-                  <p class="panel__subtext">Jihoz QR kodi skan qilinganda aktiv pasporti ochiladi va oxirgi tekshiruvlar shu yerda ko'rinadi.</p>
+                <div class="qr-monitoring-heading">
+                  <span class="qr-monitoring-heading__badge" aria-hidden="true">QR</span>
+                  <div>
+                    <p class="panel__eyebrow">QR nazorati</p>
+                    <h2>Direktor uchun skan monitoringi</h2>
+                    <p class="panel__subtext">Jihoz QR kodi skan qilinganda aktiv pasporti ochiladi va oxirgi tekshiruvlar shu yerda ko'rinadi.</p>
+                  </div>
+                </div>
+                <div class="qr-monitoring-summary" aria-label="QR skan qamrovi">
+                  <span class="qr-monitoring-summary__label">Nazorat qamrovi</span>
+                  <strong id="qrScanCoverageHero">0%</strong>
+                  <span id="qrScanSummary">0 / 0 aktiv skan qilingan</span>
+                  <div class="qr-monitoring-summary__track">
+                    <span id="qrScanCoverageBar"></span>
+                  </div>
                 </div>
               </div>
 
@@ -454,10 +465,13 @@
                 </article>
               </div>
 
-              <div class="dashboard-split">
-                <section class="mini-panel">
+              <div class="dashboard-split dashboard-split--qr">
+                <section class="mini-panel qr-monitoring-table">
                   <div class="mini-panel__header">
-                    <h3>Oxirgi QR skanlar</h3>
+                    <div>
+                      <h3>Oxirgi QR skanlar</h3>
+                      <p>Kim, qaysi jihozni va qachon tekshirganini ko'rsatadi.</p>
+                    </div>
                   </div>
                   <div class="table-wrap table-wrap--compact">
                     <table>
@@ -474,9 +488,12 @@
                   </div>
                 </section>
 
-                <section class="mini-panel">
+                <section class="mini-panel qr-monitoring-table qr-monitoring-table--muted">
                   <div class="mini-panel__header">
-                    <h3>Hali skan qilinmaganlar</h3>
+                    <div>
+                      <h3>Hali skan qilinmaganlar</h3>
+                      <p>Direktor nazorati uchun tekshirilmagan aktivlar ro'yxati.</p>
+                    </div>
                   </div>
                   <div class="table-wrap table-wrap--compact">
                     <table>

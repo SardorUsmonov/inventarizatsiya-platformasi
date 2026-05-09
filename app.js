@@ -158,6 +158,9 @@ const dashboardDepartmentList = document.querySelector("#dashboardDepartmentList
 const qrReadyCountElement = document.querySelector("#qrReadyCount");
 const qrTodayScanCountElement = document.querySelector("#qrTodayScanCount");
 const qrScanCoverageElement = document.querySelector("#qrScanCoverage");
+const qrScanCoverageHeroElement = document.querySelector("#qrScanCoverageHero");
+const qrScanSummaryElement = document.querySelector("#qrScanSummary");
+const qrScanCoverageBarElement = document.querySelector("#qrScanCoverageBar");
 const qrLastScanAtElement = document.querySelector("#qrLastScanAt");
 const qrRecentScansTableBody = document.querySelector("#qrRecentScansTableBody");
 const qrUnscannedTableBody = document.querySelector("#qrUnscannedTableBody");
@@ -1804,10 +1807,15 @@ function renderQrControl(qrControl) {
   const totalRecords = Number(stats.totalRecords || 0);
   const scannedRecords = Number(stats.scannedRecords || 0);
   const scansToday = Number(stats.scansToday || 0);
+  const coverageText = formatPercent(scannedRecords, totalRecords);
+  const coverageWidth = totalRecords ? Math.min(100, Math.round((scannedRecords / totalRecords) * 100)) : 0;
 
   qrReadyCountElement.textContent = totalRecords;
   qrTodayScanCountElement.textContent = scansToday;
-  qrScanCoverageElement.textContent = formatPercent(scannedRecords, totalRecords);
+  qrScanCoverageElement.textContent = coverageText;
+  qrScanCoverageHeroElement.textContent = coverageText;
+  qrScanSummaryElement.textContent = `${scannedRecords} / ${totalRecords} aktiv skan qilingan`;
+  qrScanCoverageBarElement.style.width = `${coverageWidth}%`;
   qrLastScanAtElement.textContent = stats.lastScanAt ? formatDate(stats.lastScanAt) : "-";
 
   renderDashboardTable(qrRecentScansTableBody, qrControl?.recentScans || [], (scan, row) => {
